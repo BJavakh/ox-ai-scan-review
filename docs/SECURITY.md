@@ -27,6 +27,7 @@ Trust boundaries: browser to API (untrusted input), API to GitHub (untrusted con
 ## 3. SSRF
 
 - The only accepted input shape is `https://github.com/{owner}/{repo}` with an optional trailing `/`, `.git`, or `/tree/{ref}`. `www.github.com` is accepted and normalized.
+- Inputs containing `.` or `..` path segments (literal or `%2e`-encoded) are rejected before parsing, because the WHATWG `URL` parser would silently resolve them into a different path.
 - Parsing uses the WHATWG `URL` parser, then checks: protocol is exactly `https:`, hostname is exactly `github.com` or `www.github.com`, no username/password, no port, path segments match the allowed forms.
 - `owner` must match GitHub's rules: 1 to 39 characters, alphanumerics or single hyphens, not starting or ending with a hyphen. `repo` must be 1 to 100 characters of `[A-Za-z0-9._-]` and not `.` or `..`. `ref` must be 1 to 200 characters of `[A-Za-z0-9._/-]` with no `..` segment and no leading `/` or `-`.
 - **The user's URL is never fetched.** The server extracts `owner`, `repo` and `ref`, then builds requests against fixed constants `https://api.github.com` and `https://api.osv.dev`. Path components are `encodeURIComponent`-escaped.

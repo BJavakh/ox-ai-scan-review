@@ -31,6 +31,12 @@ Entries are appended as work happens.
 - Typed `vite.config.ts` could not take a `test` key with Vite 8 + Vitest 5 typings; moved web test config to its own `vitest.config.ts`.
 - Verified: typecheck, lint, 3 env tests green; `npm run dev` serves the web app on 5180 and proxies `/api/health` to the API on 8787.
 
+#### Milestone 2: shared contract
+
+- Wrote Zod schemas for scans, steps, errors, reports, actions, findings, coverage, API requests/responses, the error envelope and SSE events in `packages/shared`, plus the GitHub URL parser (shared so the browser and server validate identically).
+- **Agent mistake caught by its own test:** the first parser test assumed `https://github.com/o/r/tree/../../x/y` would parse as repo `x/y`. It actually normalizes to `/o/x/y` (the WHATWG parser resolves dot segments), which shows the risk: the URL the user typed and the repo we would scan differ. Changed the parser to reject literal and `%2e`-encoded dot segments, and updated `SECURITY.md`.
+- Verified: 53 shared tests (URL accept/reject table including SSRF-style inputs such as `169.254.169.254`, `github.com.evil.com`, credentials, ports) plus schema tests.
+
 ## Verification approach
 
 - **Types:** `strict`, `noUncheckedIndexedAccess`, no `any` (lint-enforced).
