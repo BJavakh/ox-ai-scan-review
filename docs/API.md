@@ -9,23 +9,29 @@ Every response carries an `X-Request-Id` header. A client may send its own `X-Re
 Every non-2xx response has this shape:
 
 ```json
-{ "error": { "code": "INVALID_REPO_URL", "message": "Only https://github.com/{owner}/{repo} URLs are supported.", "details": { "reason": "host" } } }
+{
+  "error": {
+    "code": "INVALID_REPO_URL",
+    "message": "Only https://github.com/{owner}/{repo} URLs are supported.",
+    "details": { "reason": "host" }
+  }
+}
 ```
 
 `details` is optional. Stack traces and internal messages are never returned; 500s always say `"An unexpected error occurred."` and the request ID is the correlation handle.
 
-| HTTP | `code` | When |
-|---|---|---|
-| 400 | `VALIDATION_ERROR` | Body or params fail schema validation (`details.issues` lists paths and messages) |
-| 400 | `INVALID_REPO_URL` | URL is not an accepted GitHub repository URL (`details.reason`) |
-| 404 | `NOT_FOUND` | Unknown scan ID or route |
-| 409 | `SCAN_NOT_COMPLETED` | Report requested before completion (`details.status`) |
-| 413 | `PAYLOAD_TOO_LARGE` | Body over 16 KB |
-| 415 | `UNSUPPORTED_MEDIA_TYPE` | Body is not JSON |
-| 429 | `RATE_LIMITED` | Per-IP request rate exceeded (`Retry-After` header set) |
-| 429 | `TOO_MANY_STREAMS` | Too many open SSE streams for this IP or globally |
-| 503 | `SERVICE_BUSY` | Scan queue is full |
-| 500 | `INTERNAL_ERROR` | Anything unexpected |
+| HTTP | `code`                   | When                                                                              |
+| ---- | ------------------------ | --------------------------------------------------------------------------------- |
+| 400  | `VALIDATION_ERROR`       | Body or params fail schema validation (`details.issues` lists paths and messages) |
+| 400  | `INVALID_REPO_URL`       | URL is not an accepted GitHub repository URL (`details.reason`)                   |
+| 404  | `NOT_FOUND`              | Unknown scan ID or route                                                          |
+| 409  | `SCAN_NOT_COMPLETED`     | Report requested before completion (`details.status`)                             |
+| 413  | `PAYLOAD_TOO_LARGE`      | Body over 16 KB                                                                   |
+| 415  | `UNSUPPORTED_MEDIA_TYPE` | Body is not JSON                                                                  |
+| 429  | `RATE_LIMITED`           | Per-IP request rate exceeded (`Retry-After` header set)                           |
+| 429  | `TOO_MANY_STREAMS`       | Too many open SSE streams for this IP or globally                                 |
+| 503  | `SERVICE_BUSY`           | Scan queue is full                                                                |
+| 500  | `INTERNAL_ERROR`         | Anything unexpected                                                               |
 
 ## `POST /api/scans`
 
@@ -51,7 +57,7 @@ Responses:
 Errors: `400 VALIDATION_ERROR`, `400 INVALID_REPO_URL`, `429 RATE_LIMITED`, `503 SERVICE_BUSY`.
 
 ```bash
-curl -s -X POST localhost:3000/api/scans -H 'content-type: application/json' \
+curl -s -X POST localhost:8787/api/scans -H 'content-type: application/json' \
   -d '{"repoUrl":"https://github.com/expressjs/express"}'
 ```
 
@@ -64,18 +70,64 @@ Current state of a scan. Use this for polling (the web client polls every 1.5 s 
 ```json
 {
   "id": "8a7c3e0e-3a0b-4c55-9a55-1a1f4b9a4b8e",
-  "repo": { "owner": "expressjs", "name": "express", "url": "https://github.com/expressjs/express" },
+  "repo": {
+    "owner": "expressjs",
+    "name": "express",
+    "url": "https://github.com/expressjs/express"
+  },
   "ref": null,
   "commitSha": "1f0d5b3c0e4c2b8f0b7d2a7e9c0a1b2c3d4e5f60",
   "status": "checking_vulnerabilities",
   "progress": 33,
   "steps": [
-    { "name": "fetching_repo", "label": "Fetch repository", "status": "completed", "detail": "Commit 1f0d5b3 on master, package.json", "startedAt": "2026-10-23T10:00:00.120Z", "finishedAt": "2026-10-23T10:00:01.020Z" },
-    { "name": "resolving_dependencies", "label": "Resolve dependencies", "status": "completed", "detail": "31 packages (31 direct)", "startedAt": "...", "finishedAt": "..." },
-    { "name": "checking_vulnerabilities", "label": "Check known vulnerabilities", "status": "running", "detail": null, "startedAt": "...", "finishedAt": null },
-    { "name": "prioritizing", "label": "Prioritize risks", "status": "pending", "detail": null, "startedAt": null, "finishedAt": null },
-    { "name": "generating_summary", "label": "Write summary", "status": "pending", "detail": null, "startedAt": null, "finishedAt": null },
-    { "name": "completed", "label": "Report ready", "status": "pending", "detail": null, "startedAt": null, "finishedAt": null }
+    {
+      "name": "fetching_repo",
+      "label": "Fetch repository",
+      "status": "completed",
+      "detail": "Commit 1f0d5b3 on master, package.json",
+      "startedAt": "2026-10-23T10:00:00.120Z",
+      "finishedAt": "2026-10-23T10:00:01.020Z"
+    },
+    {
+      "name": "resolving_dependencies",
+      "label": "Resolve dependencies",
+      "status": "completed",
+      "detail": "31 packages (31 direct)",
+      "startedAt": "...",
+      "finishedAt": "..."
+    },
+    {
+      "name": "checking_vulnerabilities",
+      "label": "Check known vulnerabilities",
+      "status": "running",
+      "detail": null,
+      "startedAt": "...",
+      "finishedAt": null
+    },
+    {
+      "name": "prioritizing",
+      "label": "Prioritize risks",
+      "status": "pending",
+      "detail": null,
+      "startedAt": null,
+      "finishedAt": null
+    },
+    {
+      "name": "generating_summary",
+      "label": "Write summary",
+      "status": "pending",
+      "detail": null,
+      "startedAt": null,
+      "finishedAt": null
+    },
+    {
+      "name": "completed",
+      "label": "Report ready",
+      "status": "pending",
+      "detail": null,
+      "startedAt": null,
+      "finishedAt": null
+    }
   ],
   "error": null,
   "createdAt": "2026-10-23T10:00:00.010Z",
@@ -87,7 +139,11 @@ Current state of a scan. Use this for polling (the web client polls every 1.5 s 
 `status` is one of `queued`, `fetching_repo`, `resolving_dependencies`, `checking_vulnerabilities`, `prioritizing`, `generating_summary`, `completed`, `failed`. When `failed`, `error` is set:
 
 ```json
-{ "code": "GITHUB_RATE_LIMITED", "message": "GitHub's API rate limit was reached. Try again in a few minutes, or configure GITHUB_TOKEN on the server.", "retryable": true }
+{
+  "code": "GITHUB_RATE_LIMITED",
+  "message": "GitHub's API rate limit was reached. Try again in a few minutes, or configure GITHUB_TOKEN on the server.",
+  "retryable": true
+}
 ```
 
 Scan error codes: `REPO_NOT_FOUND`, `REPO_EMPTY`, `GITHUB_RATE_LIMITED`, `GITHUB_UNAVAILABLE`, `NO_SUPPORTED_MANIFEST`, `MANIFEST_TOO_LARGE`, `MANIFEST_INVALID`, `TOO_MANY_PACKAGES`, `VULN_SOURCE_UNAVAILABLE`, `SCAN_TIMEOUT`, `INTERNAL_ERROR`.
@@ -98,13 +154,13 @@ Errors: `400 VALIDATION_ERROR` (ID is not a UUID), `404 NOT_FOUND`.
 
 Server-Sent Events stream (`text/event-stream`). Each event's `data` is JSON.
 
-| Event | `data` | When |
-|---|---|---|
-| `snapshot` | full `Scan` | First message on every connection (lets a reconnecting client resync) |
-| `step` | `ScanStep` | A step changes status or detail |
-| `progress` | `{ "status": ScanStatus, "progress": number }` | After every step change |
-| `completed` | `{ "scanId": string }` | Scan completed; the server then closes the stream |
-| `failed` | `{ "scanId": string, "error": ScanError }` | Scan failed; the server then closes the stream |
+| Event       | `data`                                         | When                                                                  |
+| ----------- | ---------------------------------------------- | --------------------------------------------------------------------- |
+| `snapshot`  | full `Scan`                                    | First message on every connection (lets a reconnecting client resync) |
+| `step`      | `ScanStep`                                     | A step changes status or detail                                       |
+| `progress`  | `{ "status": ScanStatus, "progress": number }` | After every step change                                               |
+| `completed` | `{ "scanId": string }`                         | Scan completed; the server then closes the stream                     |
+| `failed`    | `{ "scanId": string, "error": ScanError }`     | Scan failed; the server then closes the stream                        |
 
 A comment line `: heartbeat` is sent every 15 s so proxies keep the connection open and dead clients are detected. If the scan is already terminal when the client connects, the server sends `snapshot` followed by `completed`/`failed` and closes.
 
@@ -154,21 +210,49 @@ data: {"status":"checking_vulnerabilities","progress":33}
     }
   ],
   "topRisks": [
-    { "findingId": "GHSA-35jh-r3h4-6jhm", "packageName": "lodash", "severity": "HIGH", "title": "Command Injection in lodash", "explanation": "..." }
+    {
+      "findingId": "GHSA-35jh-r3h4-6jhm",
+      "packageName": "lodash",
+      "severity": "HIGH",
+      "title": "Command Injection in lodash",
+      "explanation": "..."
+    }
   ],
   "findings": [
     {
-      "id": "GHSA-35jh-r3h4-6jhm", "aliases": ["CVE-2021-23337"], "packageName": "lodash", "installedVersion": "4.17.15",
-      "severity": "HIGH", "severitySource": "ghsa", "cvssScore": 7.2, "summary": "Command Injection in lodash",
-      "fixedVersion": "4.17.21", "direct": true, "dev": false, "introducedBy": [], "score": 7,
+      "id": "GHSA-35jh-r3h4-6jhm",
+      "aliases": ["CVE-2021-23337"],
+      "packageName": "lodash",
+      "installedVersion": "4.17.15",
+      "severity": "HIGH",
+      "severitySource": "ghsa",
+      "cvssScore": 7.2,
+      "summary": "Command Injection in lodash",
+      "fixedVersion": "4.17.21",
+      "direct": true,
+      "dev": false,
+      "introducedBy": [],
+      "score": 7,
       "advisoryUrl": "https://osv.dev/vulnerability/GHSA-35jh-r3h4-6jhm"
     }
   ],
-  "stats": { "totalFindings": 8, "bySeverity": { "CRITICAL": 0, "HIGH": 3, "MODERATE": 4, "LOW": 1, "UNKNOWN": 0 }, "actionCount": 2, "fixableFindings": 7 },
+  "stats": {
+    "totalFindings": 8,
+    "bySeverity": { "CRITICAL": 0, "HIGH": 3, "MODERATE": 4, "LOW": 1, "UNKNOWN": 0 },
+    "actionCount": 2,
+    "fixableFindings": 7
+  },
   "coverage": {
-    "ecosystem": "npm", "manifest": "package-lock.json", "lockfileVersion": 3, "accuracy": "exact",
-    "packagesChecked": 812, "directDependencies": 34, "transitiveDependencies": 778, "skippedPackages": 0,
-    "unsupportedManifests": ["requirements.txt"], "scannedPath": "/"
+    "ecosystem": "npm",
+    "manifest": "package-lock.json",
+    "lockfileVersion": 3,
+    "accuracy": "exact",
+    "packagesChecked": 812,
+    "directDependencies": 34,
+    "transitiveDependencies": 778,
+    "skippedPackages": 0,
+    "unsupportedManifests": ["requirements.txt"],
+    "scannedPath": "/"
   },
   "notes": [],
   "reusedFromScanId": null
@@ -182,7 +266,19 @@ Field semantics are in `docs/ARCHITECTURE.md` section 4 and 5.
 The 20 most recent scans, newest first.
 
 ```json
-{ "scans": [ { "id": "...", "repo": { "owner": "acme", "name": "shop", "url": "..." }, "ref": null, "status": "completed", "riskLevel": "high", "commitSha": "1f0d5b3c...", "createdAt": "..." } ] }
+{
+  "scans": [
+    {
+      "id": "...",
+      "repo": { "owner": "acme", "name": "shop", "url": "..." },
+      "ref": null,
+      "status": "completed",
+      "riskLevel": "high",
+      "commitSha": "1f0d5b3c...",
+      "createdAt": "..."
+    }
+  ]
+}
 ```
 
 `riskLevel` is `null` unless the scan completed.

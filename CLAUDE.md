@@ -6,7 +6,7 @@ AI Scan Review: submit a public GitHub repo, scan its npm dependencies against O
 
 ```bash
 npm install                 # also builds packages/shared (postinstall)
-npm run dev                 # shared watcher + API on :3000 + web on :5173
+npm run dev                 # shared watcher + API on :8787 + web on :5180
 SCANNER_MODE=mock npm run dev   # fully offline demo with fixtures
 npm run typecheck           # all workspaces
 npm run lint                # eslint, type-aware

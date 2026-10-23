@@ -4,25 +4,25 @@ This document covers the security of **this service**, not the vulnerabilities i
 
 ## 1. Assets and trust boundaries
 
-| Asset | Why it matters |
-|---|---|
-| `GITHUB_TOKEN`, `ANTHROPIC_API_KEY` | Billing and rate-limit abuse; a GitHub token may have more scope than intended |
-| The server's network position | SSRF into internal services or cloud metadata |
-| Availability (worker slots, outbound quotas) | A few requests could exhaust the GitHub/OSV/LLM budget |
-| Report integrity | A user acting on a wrong "fix" or a fake advisory is a real harm |
+| Asset                                        | Why it matters                                                                 |
+| -------------------------------------------- | ------------------------------------------------------------------------------ |
+| `GITHUB_TOKEN`, `ANTHROPIC_API_KEY`          | Billing and rate-limit abuse; a GitHub token may have more scope than intended |
+| The server's network position                | SSRF into internal services or cloud metadata                                  |
+| Availability (worker slots, outbound quotas) | A few requests could exhaust the GitHub/OSV/LLM budget                         |
+| Report integrity                             | A user acting on a wrong "fix" or a fake advisory is a real harm               |
 
 Trust boundaries: browser to API (untrusted input), API to GitHub (untrusted content), API to OSV (semi-trusted data, untrusted free text), API to LLM (untrusted output).
 
 ## 2. STRIDE-lite
 
-| Threat | Example | Control |
-|---|---|---|
-| **S**poofing | A crafted URL makes the server talk to a host that pretends to be GitHub | Fixed base URLs; the user URL is parsed, never fetched (section 3) |
-| **T**ampering | A malicious lockfile tries to inject content into the report or the LLM prompt | Strict parsing, name/version validation, prompt-injection controls (sections 4, 5) |
-| **R**epudiation | "Who started this scan?" | Structured logs with request ID, IP and scan ID; no auth in v1, so attribution is per IP only |
-| **I**nformation disclosure | Secrets in logs, stack traces in responses, token sent to the browser | pino redaction, error envelope without stacks, secrets only in server env (sections 7, 8) |
-| **D**enial of service | Huge lockfile, thousands of scans, open SSE sockets forever | Size and count caps, rate limits, bounded queue, timeouts, SSE limits (section 6) |
-| **E**levation of privilege | Repo content executed during scanning (install scripts, `postinstall`) | We never clone, install or execute anything; we only parse JSON (section 4) |
+| Threat                     | Example                                                                        | Control                                                                                       |
+| -------------------------- | ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| **S**poofing               | A crafted URL makes the server talk to a host that pretends to be GitHub       | Fixed base URLs; the user URL is parsed, never fetched (section 3)                            |
+| **T**ampering              | A malicious lockfile tries to inject content into the report or the LLM prompt | Strict parsing, name/version validation, prompt-injection controls (sections 4, 5)            |
+| **R**epudiation            | "Who started this scan?"                                                       | Structured logs with request ID, IP and scan ID; no auth in v1, so attribution is per IP only |
+| **I**nformation disclosure | Secrets in logs, stack traces in responses, token sent to the browser          | pino redaction, error envelope without stacks, secrets only in server env (sections 7, 8)     |
+| **D**enial of service      | Huge lockfile, thousands of scans, open SSE sockets forever                    | Size and count caps, rate limits, bounded queue, timeouts, SSE limits (section 6)             |
+| **E**levation of privilege | Repo content executed during scanning (install scripts, `postinstall`)         | We never clone, install or execute anything; we only parse JSON (section 4)                   |
 
 ## 3. SSRF
 
@@ -62,18 +62,18 @@ The LLM sees data that an attacker can influence: package names in a lockfile th
 
 ## 7. Abuse and DoS
 
-| Control | Setting |
-|---|---|
-| Global rate limit | 100 requests / minute / IP (`@fastify/rate-limit`) |
-| Scan creation | 10 / minute / IP |
-| Body size | 16 KB (`bodyLimit`) |
-| Job concurrency | 2 scans at a time, 25 queued; `503 SERVICE_BUSY` beyond |
-| Per-scan timeout | 120 s, propagated via `AbortSignal` to every outbound call |
-| Outbound timeouts | GitHub 10 s, OSV 15 s, LLM 20 s |
-| Advisory hydration | 8 concurrent, 500 per scan |
-| SSE | 10 streams per IP, 100 total, 15 s heartbeat, stream closed on terminal state, listener removed on client disconnect |
-| Dedupe | Same repo/ref while running returns the same scan; same SHA within 1 h reuses the result |
-| Memory | Store keeps the last 200 scans |
+| Control            | Setting                                                                                                              |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| Global rate limit  | 100 requests / minute / IP (`@fastify/rate-limit`)                                                                   |
+| Scan creation      | 10 / minute / IP                                                                                                     |
+| Body size          | 16 KB (`bodyLimit`)                                                                                                  |
+| Job concurrency    | 2 scans at a time, 25 queued; `503 SERVICE_BUSY` beyond                                                              |
+| Per-scan timeout   | 120 s, propagated via `AbortSignal` to every outbound call                                                           |
+| Outbound timeouts  | GitHub 10 s, OSV 15 s, LLM 20 s                                                                                      |
+| Advisory hydration | 8 concurrent, 500 per scan                                                                                           |
+| SSE                | 10 streams per IP, 100 total, 15 s heartbeat, stream closed on terminal state, listener removed on client disconnect |
+| Dedupe             | Same repo/ref while running returns the same scan; same SHA within 1 h reuses the result                             |
+| Memory             | Store keeps the last 200 scans                                                                                       |
 
 ## 8. Secrets
 
@@ -87,7 +87,7 @@ The LLM sees data that an attacker can influence: package names in a lockfile th
 
 - `@fastify/helmet` with a strict CSP for API responses: `default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'`. JSON responses never need to load anything.
 - The production web build should be served with `default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'`. The built app uses no inline scripts or styles, so this works without `unsafe-inline`.
-- CORS is restricted to `WEB_ORIGIN` (default `http://localhost:5173`), methods `GET, POST`, no credentials. In development the Vite proxy makes requests same-origin anyway.
+- CORS is restricted to `WEB_ORIGIN` (default `http://localhost:5180`), methods `GET, POST`, no credentials. In development the Vite proxy makes requests same-origin anyway.
 - `X-Request-Id` on every response: a client-supplied ID is accepted only if it matches `^[A-Za-z0-9-]{1,64}$` (prevents log injection); otherwise a UUID is generated.
 - The server binds to `127.0.0.1` by default (`HOST`).
 - `X-Powered-By` is not sent; error responses never include stack traces.

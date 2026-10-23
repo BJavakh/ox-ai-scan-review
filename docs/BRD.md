@@ -12,14 +12,14 @@ The customer does not lack data. Every dependency scanner already prints hundred
 
 Concretely, we interpret the request as:
 
-| Phrase in the request | What we build |
-|---|---|
-| "connect one of my GitHub repositories" | Paste a public `https://github.com/{owner}/{repo}` URL. No OAuth in this version. |
-| "code or dependencies security review" | **Dependencies** (npm). Code scanning (SAST) is out of scope for v1; see section 5. |
-| "AI-assisted" | The AI writes the plain-language summary and explains each top risk. It never decides severity or invents findings. |
-| "I don't want a raw scanner report" | The report leads with **actions** (upgrades), grouped and ranked, not with a list of CVEs. |
-| "what matters, what is risky" | A deterministic risk level and a short "top risks" list, with production vs development and direct vs transitive context. |
-| "what I should do next" | Each action has a target version and a copyable command. |
+| Phrase in the request                   | What we build                                                                                                                                             |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| "connect one of my GitHub repositories" | Paste a public `https://github.com/{owner}/{repo}` URL. No OAuth in this version.                                                                         |
+| "code or dependencies security review"  | **Dependencies** (npm). Code scanning (SAST) is out of scope for v1; see section 5.                                                                       |
+| "AI-assisted"                           | The AI writes the plain-language summary and explains each top risk. It never decides severity or invents findings.                                       |
+| "I don't want a raw scanner report"     | The report leads with **actions** (upgrades), grouped and ranked, not with a list of CVEs.                                                                |
+| "what matters, what is risky"           | A deterministic risk level and a short "top risks" list, with production vs development and direct vs transitive context.                                 |
+| "what I should do next"                 | Each action has a target version and a copyable command.                                                                                                  |
 | "a product experience, not just an API" | A web UI with live progress, failure states that explain themselves, and an honest coverage section. The API is still a first-class, documented contract. |
 
 ## 2. Personas
@@ -31,6 +31,7 @@ Concretely, we interpret the request as:
 ## 3. User stories and acceptance criteria
 
 ### US-1: Submit a repository (capability 1)
+
 As Dana, I want to paste my GitHub repository URL so that I can review it without installing anything.
 
 - Accepts `https://github.com/{owner}/{repo}`, with an optional trailing `/`, `.git` suffix, or `/tree/{ref}`.
@@ -39,6 +40,7 @@ As Dana, I want to paste my GitHub repository URL so that I can review it withou
 - Example repositories are one click away so a first-time user can see a result without having a vulnerable repo at hand.
 
 ### US-2: Start a scan (capability 2)
+
 As Dana, I want one click to start the scan and to land on a progress page immediately.
 
 - `POST /api/scans` returns within 100 ms (no outbound calls on the request path) with a scan ID.
@@ -46,6 +48,7 @@ As Dana, I want one click to start the scan and to land on a progress page immed
 - If the service is at capacity, the user is told to retry shortly (HTTP 503), not left with a scan that never starts.
 
 ### US-3: Follow progress (capability 3)
+
 As Dana, I want to see what the scan is doing so that I trust it and know it has not hung.
 
 - The progress page shows six named steps (fetch repository, resolve dependencies, check vulnerabilities, prioritize, write summary, done) with live status, per-step detail (for example "812 packages, 34 direct") and elapsed time.
@@ -54,6 +57,7 @@ As Dana, I want to see what the scan is doing so that I trust it and know it has
 - On failure, the page shows a human explanation (for example "GitHub's unauthenticated rate limit was hit, try again in a few minutes or set GITHUB_TOKEN") and a retry button when the error is retryable.
 
 ### US-4: See a useful result (capability 4)
+
 As Dana, I want a result page that I can read top to bottom in under a minute.
 
 - Order: risk level and headline, "Fix first" actions, top risks explained, coverage, full findings table.
@@ -62,6 +66,7 @@ As Dana, I want a result page that I can read top to bottom in under a minute.
 - The same data is available as JSON from `GET /api/scans/:id/report`.
 
 ### US-5: Understand risk and next actions (capability 5)
+
 As Omer, I want a risk level I can defend and know what was checked.
 
 - The risk level (`critical`, `high`, `medium`, `low`, `none`) is computed from a documented rule, never by the LLM.
@@ -80,48 +85,48 @@ As Omer, I want a risk level I can defend and know what was checked.
 
 ## 5. Out of scope (explicit non-goals)
 
-| Non-goal | Why it is out | Where it is tracked |
-|---|---|---|
-| User accounts and authentication | Single-user demo; adds no insight to the core flow | README "What I'd do next" |
-| Private repositories via OAuth / GitHub App | Requires app registration, token storage and per-user authz | README "What I'd do next" |
-| SAST (scanning first-party code) | Different engine (Semgrep); would double the scope | README "What I'd do next" |
-| Ecosystems other than npm | Resolver interface exists; parsers are not implemented | `DependencyResolver` interface |
-| Monorepo / nested manifests | Root only; stated in the coverage section | README "Known limitations" |
-| Yarn and pnpm lockfiles, npm lockfile v1 | Fall back to `package.json` with an accuracy warning | Coverage notes |
-| Persistence across restarts | In-memory store behind `ScanRepository` | `docs/DECISIONS.md` |
-| Reachability analysis, EPSS/KEV exploit signals | Valuable, but each is its own project | README "What I'd do next" |
-| Opening PRs or applying fixes automatically | Write access to customer repos is a big trust step | README "What I'd do next" |
+| Non-goal                                        | Why it is out                                               | Where it is tracked            |
+| ----------------------------------------------- | ----------------------------------------------------------- | ------------------------------ |
+| User accounts and authentication                | Single-user demo; adds no insight to the core flow          | README "What I'd do next"      |
+| Private repositories via OAuth / GitHub App     | Requires app registration, token storage and per-user authz | README "What I'd do next"      |
+| SAST (scanning first-party code)                | Different engine (Semgrep); would double the scope          | README "What I'd do next"      |
+| Ecosystems other than npm                       | Resolver interface exists; parsers are not implemented      | `DependencyResolver` interface |
+| Monorepo / nested manifests                     | Root only; stated in the coverage section                   | README "Known limitations"     |
+| Yarn and pnpm lockfiles, npm lockfile v1        | Fall back to `package.json` with an accuracy warning        | Coverage notes                 |
+| Persistence across restarts                     | In-memory store behind `ScanRepository`                     | `docs/DECISIONS.md`            |
+| Reachability analysis, EPSS/KEV exploit signals | Valuable, but each is its own project                       | README "What I'd do next"      |
+| Opening PRs or applying fixes automatically     | Write access to customer repos is a big trust step          | README "What I'd do next"      |
 
 ## 6. Functional requirements
 
-| ID | Requirement |
-|---|---|
-| FR-1 | Parse and validate a GitHub repository URL (shared code, used by browser and server). |
-| FR-2 | Create a scan, return its ID, enqueue it on a bounded job queue. |
-| FR-3 | Deduplicate: a non-terminal scan for the same `owner/repo` and ref returns the existing scan ID. A completed result for the same commit SHA (within 1 hour) is reused. |
-| FR-4 | Resolve the ref (default branch if none given) to a commit SHA, then read every file at that SHA. |
-| FR-5 | Detect supported and unsupported manifests in the repository root. |
-| FR-6 | Resolve npm dependencies with name, version, direct/transitive, production/development, and the direct dependencies that pull in each transitive one. |
-| FR-7 | Query OSV.dev for every unique `name@version`, hydrate advisory details, and derive severity and the fixed version. |
-| FR-8 | Score findings, group them into upgrade actions, derive the risk level and the top risks. |
-| FR-9 | Generate a summary with the LLM when configured; otherwise, or on any failure, with the template. |
-| FR-10 | Publish progress events per step; expose status by polling as well. |
-| FR-11 | Expose the report as JSON and render it in the UI. |
-| FR-12 | List recent scans. |
+| ID    | Requirement                                                                                                                                                            |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| FR-1  | Parse and validate a GitHub repository URL (shared code, used by browser and server).                                                                                  |
+| FR-2  | Create a scan, return its ID, enqueue it on a bounded job queue.                                                                                                       |
+| FR-3  | Deduplicate: a non-terminal scan for the same `owner/repo` and ref returns the existing scan ID. A completed result for the same commit SHA (within 1 hour) is reused. |
+| FR-4  | Resolve the ref (default branch if none given) to a commit SHA, then read every file at that SHA.                                                                      |
+| FR-5  | Detect supported and unsupported manifests in the repository root.                                                                                                     |
+| FR-6  | Resolve npm dependencies with name, version, direct/transitive, production/development, and the direct dependencies that pull in each transitive one.                  |
+| FR-7  | Query OSV.dev for every unique `name@version`, hydrate advisory details, and derive severity and the fixed version.                                                    |
+| FR-8  | Score findings, group them into upgrade actions, derive the risk level and the top risks.                                                                              |
+| FR-9  | Generate a summary with the LLM when configured; otherwise, or on any failure, with the template.                                                                      |
+| FR-10 | Publish progress events per step; expose status by polling as well.                                                                                                    |
+| FR-11 | Expose the report as JSON and render it in the UI.                                                                                                                     |
+| FR-12 | List recent scans.                                                                                                                                                     |
 
 ## 7. Non-functional requirements
 
-| Area | Target |
-|---|---|
-| Submit latency | `POST /api/scans` p95 < 100 ms (no outbound I/O on the request path). |
-| Time to first insight | p50 < 15 s for a repo with ~1,000 packages, unauthenticated GitHub, AI summary on. |
-| Bounded runtime | Hard 120 s scan timeout; every outbound call has its own timeout (GitHub 10 s, OSV 15 s, LLM 20 s). |
-| Reliability | Idempotent reads retried up to 2 times with exponential backoff and jitter; non-retryable errors fail fast with a stable code. |
-| Graceful degradation | LLM failure gives the template summary. An advisory that cannot be hydrated gives a finding with `UNKNOWN` severity and a visible note. Neither fails the scan. |
-| Resource limits | Manifest <= 10 MB, <= 10,000 unique packages, <= 500 advisories hydrated, request body <= 16 KB, 2 concurrent scans, 25 queued. |
-| Security | See `docs/SECURITY.md`. No execution of repository code, ever. |
-| Accessibility | Labelled inputs, keyboard reachable controls, visible focus, WCAG AA contrast, usable at 360 px width. |
-| Operability | Structured JSON logs with request IDs; secrets redacted. |
+| Area                  | Target                                                                                                                                                          |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Submit latency        | `POST /api/scans` p95 < 100 ms (no outbound I/O on the request path).                                                                                           |
+| Time to first insight | p50 < 15 s for a repo with ~1,000 packages, unauthenticated GitHub, AI summary on.                                                                              |
+| Bounded runtime       | Hard 120 s scan timeout; every outbound call has its own timeout (GitHub 10 s, OSV 15 s, LLM 20 s).                                                             |
+| Reliability           | Idempotent reads retried up to 2 times with exponential backoff and jitter; non-retryable errors fail fast with a stable code.                                  |
+| Graceful degradation  | LLM failure gives the template summary. An advisory that cannot be hydrated gives a finding with `UNKNOWN` severity and a visible note. Neither fails the scan. |
+| Resource limits       | Manifest <= 10 MB, <= 10,000 unique packages, <= 500 advisories hydrated, request body <= 16 KB, 2 concurrent scans, 25 queued.                                 |
+| Security              | See `docs/SECURITY.md`. No execution of repository code, ever.                                                                                                  |
+| Accessibility         | Labelled inputs, keyboard reachable controls, visible focus, WCAG AA contrast, usable at 360 px width.                                                          |
+| Operability           | Structured JSON logs with request IDs; secrets redacted.                                                                                                        |
 
 ## 8. Assumptions
 
@@ -143,11 +148,11 @@ As Omer, I want a risk level I can defend and know what was checked.
 
 ## 10. Success metrics
 
-| Metric | Definition | Target |
-|---|---|---|
-| Time to first insight | From clicking "Scan" to the report's headline being visible | p50 < 15 s |
-| Actions to understand risk | Number of action cards the user must read to cover every critical/high production finding | <= 3 for a typical repo (shown on the report as "N actions fix X of Y issues") |
-| Compression ratio | Findings divided by actions | > 2 (lodash alone: 6 findings, 1 action) |
-| Explained failures | Share of failed scans with a specific error code (not `INTERNAL_ERROR`) | > 95% |
-| Summary reliability | Share of AI summaries that pass validation (no fallback) when a key is set | > 95% |
-| Trust | Share of reports viewed whose coverage section was expanded or scrolled to (future telemetry) | Tracked, no target in v1 |
+| Metric                     | Definition                                                                                    | Target                                                                         |
+| -------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Time to first insight      | From clicking "Scan" to the report's headline being visible                                   | p50 < 15 s                                                                     |
+| Actions to understand risk | Number of action cards the user must read to cover every critical/high production finding     | <= 3 for a typical repo (shown on the report as "N actions fix X of Y issues") |
+| Compression ratio          | Findings divided by actions                                                                   | > 2 (lodash alone: 6 findings, 1 action)                                       |
+| Explained failures         | Share of failed scans with a specific error code (not `INTERNAL_ERROR`)                       | > 95%                                                                          |
+| Summary reliability        | Share of AI summaries that pass validation (no fallback) when a key is set                    | > 95%                                                                          |
+| Trust                      | Share of reports viewed whose coverage section was expanded or scrolled to (future telemetry) | Tracked, no target in v1                                                       |

@@ -22,7 +22,14 @@ Entries are appended as work happens.
 
 ### Phase 2: implementation
 
-(appended per milestone below)
+#### Milestone 1: scaffold
+
+- Created npm workspaces (`packages/shared`, `apps/api`, `apps/web`), strict `tsconfig.base.json`, ESLint flat config (`typescript-eslint` strict type-checked, react-hooks, a `no-restricted-syntax` rule banning `dangerouslySetInnerHTML`), Prettier, Vitest per workspace, Zod-validated env with tests, `.env.example`, `.gitignore`, `.nvmrc`, `.npmrc` (`save-exact`).
+- **Problem:** `npm install` with the local npm 10.9.2 crashed with `Cannot read properties of null (reading 'edgesOut')`. First guess (workspace version spec `0.1.0` vs `*`) did not fix it. Ran the same install with npm 11 via `npx`, which worked, then confirmed `npm ci` on npm 10 works with the generated lockfile. Documented in `DEPENDENCIES.md`.
+- **Problem:** `npm audit` flagged GHSA-389g-gv7q-r4x8 in `fastify` 5.12.5, the version the cooldown rule had picked. Upgraded to 5.12.7 and recorded the exception (ADR-008).
+- **Agent mistake:** the first `npm run dev` smoke test collided with two unrelated dev servers already running on the machine (ports 3000 and 5173). The agent's health check got a 200 from the other project's Vite server and only noticed because the HTML title was wrong. Worse, the cleanup command `pkill -f vite` stopped that unrelated Vite server. The agent reported this to the user, switched to killing only the PIDs it started, and moved the defaults to 8787/5180 (ADR-017).
+- Typed `vite.config.ts` could not take a `test` key with Vite 8 + Vitest 5 typings; moved web test config to its own `vitest.config.ts`.
+- Verified: typecheck, lint, 3 env tests green; `npm run dev` serves the web app on 5180 and proxies `/api/health` to the API on 8787.
 
 ## Verification approach
 

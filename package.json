@@ -1,0 +1,39 @@
+{
+  "name": "ox-ai-scan-review",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "AI-assisted dependency security review for GitHub repositories",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "workspaces": [
+    "packages/shared",
+    "apps/api",
+    "apps/web"
+  ],
+  "scripts": {
+    "postinstall": "npm run build -w @ox-scan/shared",
+    "build:shared": "npm run build -w @ox-scan/shared",
+    "dev": "npm run build:shared && concurrently -k -n shared,api,web -c gray,blue,green \"npm run dev -w @ox-scan/shared\" \"npm run dev -w @ox-scan/api\" \"npm run dev -w @ox-scan/web\"",
+    "build": "npm run build --workspaces",
+    "typecheck": "npm run build:shared && npm run typecheck --workspaces",
+    "lint": "npm run build:shared && eslint .",
+    "test": "npm run build:shared && npm run test --workspaces",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "22.20.5",
+    "concurrently": "10.0.6",
+    "eslint": "10.12.0",
+    "eslint-config-prettier": "10.1.8",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "globals": "17.13.0",
+    "prettier": "3.9.9",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.71.1",
+    "vitest": "5.0.3"
+  }
+}

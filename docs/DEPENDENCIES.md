@@ -1,65 +1,67 @@
 # Dependencies
 
-All versions are pinned exactly (`.npmrc` has `save-exact=true`) and the lockfile is committed. Versions were chosen as the newest release that had been public for at least two weeks when the project was started (2026-10-23), as a cooldown against freshly compromised releases.
+All versions are pinned exactly (`.npmrc` has `save-exact=true`) and the lockfile is committed. Versions were chosen as the newest release that had been public for at least two weeks when the project was started (2026-10-23), as a cooldown against freshly compromised releases. The one exception is `fastify` (see its row): a published advisory overrides the cooldown.
+
+Install note: npm 10.9.2 crashes (`Cannot read properties of null (reading 'edgesOut')`) when resolving this workspace from scratch without a lockfile. The lockfile was generated with npm 11; `npm ci` and `npm install` with the committed lockfile work on npm 10.
 
 ## Runtime: `apps/api`
 
-| Package | Version | Purpose | Why needed | Alternative considered | Security notes |
-|---|---|---|---|---|---|
-| `fastify` | 5.12.5 | HTTP server | Fast, schema-friendly, built-in pino logger with redaction, `inject()` for tests without a socket | Express 5 (no built-in logger/redaction, weaker typing, needs supertest) | Mature, OpenJS Foundation project, active security process |
-| `@fastify/helmet` | 13.1.2 | Security headers + CSP | One line for CSP, `X-Content-Type-Options`, `Referrer-Policy`, HSTS etc. | Setting headers by hand (easy to miss one) | Official Fastify plugin |
-| `@fastify/cors` | 11.3.1 | CORS restricted to the web origin | Correct preflight handling | Hand-written `onRequest` hook | Official plugin; configured with a single allowed origin |
-| `@fastify/rate-limit` | 11.2.1 | Per-IP rate limits | Abuse and quota protection; per-route limits | Hand-written token bucket (no Redis store path later) | Official plugin; Redis store available for production |
-| `zod` | 4.6.5 | Validation at every boundary | Env, requests, GitHub/OSV/LLM responses, shared API contract with inferred types | Valibot (smaller, less familiar to reviewers), JSON Schema + Ajv (types not inferred) | No dependencies |
-| `semver` | 7.8.5 | Version comparison and range math | Fixed-version selection, `package.json` range fallback, version validation | Hand-written comparator (prerelease rules are subtle) | npm's own library, no dependencies |
-| `@anthropic-ai/sdk` | 0.132.1 | LLM summary | Official client: typed tool use, timeouts, abort signals | Raw `fetch` to the Messages API (more code, no typings) | Official SDK; key from env only; SDK retries disabled, we fall back instead |
+| Package               | Version | Purpose                           | Why needed                                                                                        | Alternative considered                                                                | Security notes                                                                                                                                                                                           |
+| --------------------- | ------- | --------------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `fastify`             | 5.12.7  | HTTP server                       | Fast, schema-friendly, built-in pino logger with redaction, `inject()` for tests without a socket | Express 5 (no built-in logger/redaction, weaker typing, needs supertest)              | OpenJS Foundation project. Pinned to 5.12.7 although it is only 10 days old: `npm audit` flagged GHSA-389g-gv7q-r4x8 (header validation bypass) in 5.12.2 to 5.12.5. A known fix beats the cooldown rule |
+| `@fastify/helmet`     | 13.1.2  | Security headers + CSP            | One line for CSP, `X-Content-Type-Options`, `Referrer-Policy`, HSTS etc.                          | Setting headers by hand (easy to miss one)                                            | Official Fastify plugin                                                                                                                                                                                  |
+| `@fastify/cors`       | 11.3.1  | CORS restricted to the web origin | Correct preflight handling                                                                        | Hand-written `onRequest` hook                                                         | Official plugin; configured with a single allowed origin                                                                                                                                                 |
+| `@fastify/rate-limit` | 11.2.1  | Per-IP rate limits                | Abuse and quota protection; per-route limits                                                      | Hand-written token bucket (no Redis store path later)                                 | Official plugin; Redis store available for production                                                                                                                                                    |
+| `zod`                 | 4.6.5   | Validation at every boundary      | Env, requests, GitHub/OSV/LLM responses, shared API contract with inferred types                  | Valibot (smaller, less familiar to reviewers), JSON Schema + Ajv (types not inferred) | No dependencies                                                                                                                                                                                          |
+| `semver`              | 7.8.5   | Version comparison and range math | Fixed-version selection, `package.json` range fallback, version validation                        | Hand-written comparator (prerelease rules are subtle)                                 | npm's own library, no dependencies                                                                                                                                                                       |
+| `@anthropic-ai/sdk`   | 0.132.1 | LLM summary                       | Official client: typed tool use, timeouts, abort signals                                          | Raw `fetch` to the Messages API (more code, no typings)                               | Official SDK; key from env only; SDK retries disabled, we fall back instead                                                                                                                              |
 
 ## Runtime: `packages/shared`
 
-| Package | Version | Purpose | Why needed | Alternative | Notes |
-|---|---|---|---|---|---|
-| `zod` | 4.6.5 | Schemas for the API contract and the GitHub URL parser | Single source of truth for API and web | Duplicated TS types (drift) | Same version as the API |
+| Package | Version | Purpose                                                | Why needed                             | Alternative                 | Notes                   |
+| ------- | ------- | ------------------------------------------------------ | -------------------------------------- | --------------------------- | ----------------------- |
+| `zod`   | 4.6.5   | Schemas for the API contract and the GitHub URL parser | Single source of truth for API and web | Duplicated TS types (drift) | Same version as the API |
 
 ## Runtime: `apps/web`
 
-| Package | Version | Purpose | Why needed | Alternative | Notes |
-|---|---|---|---|---|---|
-| `react`, `react-dom` | 19.3.0 | UI | Familiar, renders text safely by default | Preact (smaller, but no real gain here) | No `dangerouslySetInnerHTML` used |
-| `@ox-scan/shared` | workspace | Contract schemas | Validates every API response in the browser | | |
+| Package              | Version   | Purpose          | Why needed                                  | Alternative                             | Notes                             |
+| -------------------- | --------- | ---------------- | ------------------------------------------- | --------------------------------------- | --------------------------------- |
+| `react`, `react-dom` | 19.3.0    | UI               | Familiar, renders text safely by default    | Preact (smaller, but no real gain here) | No `dangerouslySetInnerHTML` used |
+| `@ox-scan/shared`    | workspace | Contract schemas | Validates every API response in the browser |                                         |                                   |
 
 No router, state library, UI kit or markdown renderer: three screens do not need them, and a markdown renderer would be an XSS surface for LLM output.
 
 ## Development
 
-| Package | Version | Purpose | Alternative considered | Notes |
-|---|---|---|---|---|
-| `typescript` | 6.0.3 | Type checking | TS 7 (native) was released the same day; `typescript-eslint` supports `<6.1` | |
-| `tsx` | 4.23.15 | Run TS in dev with watch | `ts-node` (slower, ESM friction), `node --experimental-strip-types` (no watch-friendly path aliasing, no enums) | Dev only |
-| `vitest` | 5.0.3 | Tests for all workspaces | Jest (ESM + TS config overhead) | |
-| `vite` | 8.3.4 | Web dev server and build | webpack (slower, more config) | Dev server proxies `/api` so the browser stays same-origin |
-| `@vitejs/plugin-react` | 6.1.2 | React fast refresh / JSX | | |
-| `eslint` | 10.12.0 | Linting | Biome (fewer type-aware rules) | |
-| `@eslint/js` | 10.0.1 | ESLint recommended rules | | |
-| `typescript-eslint` | 8.71.1 | Type-aware strict lint rules | | `strictTypeChecked` config |
-| `eslint-plugin-react-hooks` | 7.1.1 | Hooks rules | | Catches stale closures in SSE/polling code |
-| `eslint-config-prettier` | 10.1.8 | Turns off rules that fight Prettier | | |
-| `globals` | 17.13.0 | Browser/node globals for ESLint | | |
-| `prettier` | 3.9.9 | Formatting | Biome | |
-| `concurrently` | 10.0.6 | Run shared watcher, API and web from one `npm run dev` | npm-run-all2 | Dev only |
-| `@types/node` | 22.20.5 | Node 22 typings | | Matches `.nvmrc` |
-| `@types/react`, `@types/react-dom` | 19.3.0 | React typings | | |
-| `@types/semver` | 7.8.0 | semver typings | | |
+| Package                            | Version | Purpose                                                | Alternative considered                                                                                          | Notes                                                      |
+| ---------------------------------- | ------- | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| `typescript`                       | 6.0.3   | Type checking                                          | TS 7 (native) was released the same day; `typescript-eslint` supports `<6.1`                                    |                                                            |
+| `tsx`                              | 4.23.15 | Run TS in dev with watch                               | `ts-node` (slower, ESM friction), `node --experimental-strip-types` (no watch-friendly path aliasing, no enums) | Dev only                                                   |
+| `vitest`                           | 5.0.3   | Tests for all workspaces                               | Jest (ESM + TS config overhead)                                                                                 |                                                            |
+| `vite`                             | 8.3.4   | Web dev server and build                               | webpack (slower, more config)                                                                                   | Dev server proxies `/api` so the browser stays same-origin |
+| `@vitejs/plugin-react`             | 6.1.2   | React fast refresh / JSX                               |                                                                                                                 |                                                            |
+| `eslint`                           | 10.12.0 | Linting                                                | Biome (fewer type-aware rules)                                                                                  |                                                            |
+| `@eslint/js`                       | 10.0.1  | ESLint recommended rules                               |                                                                                                                 |                                                            |
+| `typescript-eslint`                | 8.71.1  | Type-aware strict lint rules                           |                                                                                                                 | `strictTypeChecked` config                                 |
+| `eslint-plugin-react-hooks`        | 7.1.1   | Hooks rules                                            |                                                                                                                 | Catches stale closures in SSE/polling code                 |
+| `eslint-config-prettier`           | 10.1.8  | Turns off rules that fight Prettier                    |                                                                                                                 |                                                            |
+| `globals`                          | 17.13.0 | Browser/node globals for ESLint                        |                                                                                                                 |                                                            |
+| `prettier`                         | 3.9.9   | Formatting                                             | Biome                                                                                                           |                                                            |
+| `concurrently`                     | 10.0.6  | Run shared watcher, API and web from one `npm run dev` | npm-run-all2                                                                                                    | Dev only                                                   |
+| `@types/node`                      | 22.20.5 | Node 22 typings                                        |                                                                                                                 | Matches `.nvmrc`                                           |
+| `@types/react`, `@types/react-dom` | 19.3.0  | React typings                                          |                                                                                                                 |                                                            |
+| `@types/semver`                    | 7.8.0   | semver typings                                         |                                                                                                                 |                                                            |
 
 ## Things we deliberately did not add
 
-| Not added | Instead |
-|---|---|
-| `axios`, `got`, `undici` | Global `fetch` with `AbortSignal.timeout` and a 60-line retry helper |
-| `p-limit`, `p-retry` | 20-line `mapWithConcurrency` and the retry helper |
-| `nock`, `msw` | Clients take an injected `fetch`; tests pass a fixture-backed fake |
-| A CVSS library | CVSS 3.x base score formula implemented and unit-tested in `domain/cvss.ts` |
-| `bullmq`, `ioredis` | `JobQueue` interface with an in-process implementation (production plan in `ARCHITECTURE.md`) |
-| `fastify-sse-v2` | SSE is a few lines over `reply.raw` |
-| `fastify-type-provider-zod` | Handlers call `schema.safeParse` explicitly; one less moving part |
-| `react-router`, `react-query` | Hash-based screen switching and two small hooks |
-| `marked`, `react-markdown` | Plain text rendering only |
+| Not added                     | Instead                                                                                       |
+| ----------------------------- | --------------------------------------------------------------------------------------------- |
+| `axios`, `got`, `undici`      | Global `fetch` with `AbortSignal.timeout` and a 60-line retry helper                          |
+| `p-limit`, `p-retry`          | 20-line `mapWithConcurrency` and the retry helper                                             |
+| `nock`, `msw`                 | Clients take an injected `fetch`; tests pass a fixture-backed fake                            |
+| A CVSS library                | CVSS 3.x base score formula implemented and unit-tested in `domain/cvss.ts`                   |
+| `bullmq`, `ioredis`           | `JobQueue` interface with an in-process implementation (production plan in `ARCHITECTURE.md`) |
+| `fastify-sse-v2`              | SSE is a few lines over `reply.raw`                                                           |
+| `fastify-type-provider-zod`   | Handlers call `schema.safeParse` explicitly; one less moving part                             |
+| `react-router`, `react-query` | Hash-based screen switching and two small hooks                                               |
+| `marked`, `react-markdown`    | Plain text rendering only                                                                     |
