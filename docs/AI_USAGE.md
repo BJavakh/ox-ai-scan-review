@@ -37,6 +37,13 @@ Entries are appended as work happens.
 - **Agent mistake caught by its own test:** the first parser test assumed `https://github.com/o/r/tree/../../x/y` would parse as repo `x/y`. It actually normalizes to `/o/x/y` (the WHATWG parser resolves dot segments), which shows the risk: the URL the user typed and the repo we would scan differ. Changed the parser to reject literal and `%2e`-encoded dot segments, and updated `SECURITY.md`.
 - Verified: 53 shared tests (URL accept/reject table including SSRF-style inputs such as `169.254.169.254`, `github.com.evil.com`, credentials, ports) plus schema tests.
 
+#### Milestone 3: domain core
+
+- Wrote the pure domain layer in `apps/api/src/domain`: state machine with transition guards, CVSS 3.x base-score calculator, severity derivation (malicious, GHSA, CVSS, unknown), fixed-version selection over OSV SEMVER ranges, scoring, grouping into actions, risk level, top-risk selection, the summary input builder (the only data the LLM will see), the template summary, and the grounding validator for LLM output.
+- The worked scoring examples in `ARCHITECTURE.md` 5.2 are asserted verbatim in `scoring.test.ts`, so the doc and the formula cannot drift silently.
+- **Agent mistake caught by test:** a CVSS rounding test expected `roundUp(4.000001)` to be 4.1. The CVSS 3.1 spec's Roundup deliberately absorbs differences below 1e-5, so 4.0 is correct; the test was wrong, not the code. Fixed the test and added a comment.
+- Verified: 90 API tests + 53 shared tests, typecheck and lint green.
+
 ## Verification approach
 
 - **Types:** `strict`, `noUncheckedIndexedAccess`, no `any` (lint-enforced).
