@@ -44,6 +44,17 @@ Entries are appended as work happens.
 - **Agent mistake caught by test:** a CVSS rounding test expected `roundUp(4.000001)` to be 4.1. The CVSS 3.1 spec's Roundup deliberately absorbs differences below 1e-5, so 4.0 is correct; the test was wrong, not the code. Fixed the test and added a comment.
 - Verified: 90 API tests + 53 shared tests, typecheck and lint green.
 
+#### Milestone 4: integrations
+
+- Wrote `lib/http.ts` (per-attempt timeout via `AbortSignal.timeout`, parent-signal cancellation, bounded exponential backoff with jitter, `Retry-After` up to 5 s, same-origin-only manual redirects, streaming size cap), `HttpGitHubClient`, `NpmDependencyResolver` (lockfile v2/v3 with Node's nested-then-hoisted resolution to compute which direct dependency pulls in each transitive one; npm aliases; `package.json` fallback), `OsvVulnerabilitySource` (querybatch in chunks of 1000, hydration with concurrency 8 and a cap of 500, withdrawn advisories dropped, partial failures become notes), `AnthropicSummaryGenerator` and `SummaryWriter` (template fallback).
+- **Agent correction from documentation lookup:** ADR-011 originally said "force a tool call with `tool_choice`". Before writing the LLM client, the agent loaded the Claude API reference and found that forced `tool_choice` returns HTTP 400 on `claude-sonnet-5-5` (the brief's default model). Switched to structured outputs (`output_config.format` with a JSON schema whose `findingId` is an `enum` of the real top-risk IDs) and updated ADR-011. Our own Zod + grounding validation still runs on the result.
+- The reference also recommends server-side refusal `fallbacks` for this model. Not used: a refusal here already falls back to the deterministic template, which is the safer fallback for a security report than another model.
+- **Fixtures are recorded, not invented:** `scripts/record-osv-fixtures.ts` resolves the fixture repos with the real resolver and records `querybatch` results and every advisory from the live OSV API (19 packages, 61 advisories). The first recording showed `nanoid@5.0.9`, picked for the "clean" demo repo, now has 3 advisories; swapped it for `picocolors@1.1.1` (verified clean) and re-recorded.
+- Mock mode and tests use the same live client classes with a fixture-serving `fetch` (`createFixtureFetch`), so status mapping, size caps and parsing are exercised offline.
+- Added `REF_NOT_FOUND` (a bad branch in a `/tree/{ref}` URL previously would have said "repository not found").
+- Lint caught 9 issues on first run (an untyped stream reader, unused catch binding, a script outside the TS project); fixed.
+- Verified: 142 API tests + 53 shared tests, typecheck and lint green.
+
 ## Verification approach
 
 - **Types:** `strict`, `noUncheckedIndexedAccess`, no `any` (lint-enforced).

@@ -16,6 +16,10 @@ export const SCAN_ERRORS: Readonly<Record<ScanErrorCode, ErrorInfo>> = {
     message: 'The repository is empty, so there is nothing to scan.',
     retryable: false,
   },
+  REF_NOT_FOUND: {
+    message: 'The branch, tag or commit in the URL was not found in this repository.',
+    retryable: false,
+  },
   GITHUB_RATE_LIMITED: {
     message:
       "GitHub's API rate limit was reached. Try again in a few minutes, or configure GITHUB_TOKEN on the server.",

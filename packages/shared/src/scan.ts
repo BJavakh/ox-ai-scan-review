@@ -58,6 +58,7 @@ export type ScanStep = z.infer<typeof scanStepSchema>;
 export const scanErrorCodeSchema = z.enum([
   'REPO_NOT_FOUND',
   'REPO_EMPTY',
+  'REF_NOT_FOUND',
   'GITHUB_RATE_LIMITED',
   'GITHUB_UNAVAILABLE',
   'NO_SUPPORTED_MANIFEST',

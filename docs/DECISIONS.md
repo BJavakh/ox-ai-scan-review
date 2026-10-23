@@ -42,9 +42,9 @@ The brief asks for dedupe on `owner/repo@sha`. The SHA is only known after calli
 
 The engineering rule is "retry only idempotent GETs". `POST /v1/querybatch` is a pure read (a query with a body), so retrying it is safe and has the same semantics as retrying a GET. Not retrying it would make one transient OSV 503 fail the entire scan. LLM calls are not retried: they are slow, cost money, and we have a fallback.
 
-### ADR-011: Structured LLM output via a forced tool call
+### ADR-011: Structured LLM output via `output_config.format` (revised)
 
-We force the model to call a single `write_summary` tool and read its `input`, rather than asking for JSON in free text. This removes parsing failures from code fences or preambles. The input is still validated with Zod and grounding-checked because a schema-valid answer can still be wrong.
+First draft: force a single tool call with `tool_choice`. Revised before implementation because forced `tool_choice` (`any`/`tool`) is rejected with HTTP 400 on `claude-sonnet-5-5`. We use structured outputs instead: a JSON schema with `additionalProperties: false`, where `riskExplanations[].findingId` is an `enum` of the actual top-risk IDs, so the model cannot even name an unknown finding. The SDK's built-in retries are disabled and effort is `low` (short, factual prose). The parsed JSON is still validated with Zod and grounding-checked, because a schema-valid answer can still invent a CVE in free text. Server-side refusal fallbacks to another model are not used; the deterministic template is our fallback.
 
 ### ADR-012: Supported npm inputs
 
@@ -62,9 +62,9 @@ OSV entries with `MAL-` IDs come from the OpenSSF malicious-packages feed and us
 
 Three screens (`#/`, `#/scans/:id`) do not justify a router dependency. Hash routing lets a user refresh or share a scan link, and the progress screen switches to the report in place when the scan completes.
 
-### ADR-016: Mock mode is selected by `SCANNER_MODE`, not by test doubles in production code paths
+### ADR-016: Mock mode is a fixture-serving `fetch`, not separate mock classes
 
-`SCANNER_MODE=mock` swaps the GitHub client and the vulnerability source for fixture-backed implementations and forces the template summary, so a reviewer can run the full flow offline. Integration tests use the live implementations with an injected fake `fetch` serving recorded fixtures, so the HTTP code paths (status mapping, retries, size caps) are also tested.
+`SCANNER_MODE=mock` keeps the real `HttpGitHubClient` and `OsvVulnerabilitySource` and injects `createFixtureFetch`, which serves recorded GitHub-shaped repos and recorded OSV responses from `apps/api/fixtures` (with a little latency so progress is visible). It also forces the template summary. Tests use the same fetch, so mock mode, tests and production share every line of parsing and error-mapping code. Unknown repos in mock mode fall back to the vulnerable demo repo so any URL produces a demo; in tests they 404. Fixtures are re-recorded from the live API with `npx tsx scripts/record-osv-fixtures.ts`.
 
 ### ADR-017: Default ports 8787 (API) and 5180 (web)
 

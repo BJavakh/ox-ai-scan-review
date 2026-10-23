@@ -1,0 +1,102 @@
+{
+  "express@4.17.0": [
+    "GHSA-qw6h-vgh9-j6wx",
+    "GHSA-rv95-896h-c2vc"
+  ],
+  "lodash@4.17.10": [
+    "GHSA-29mw-wpgm-hmr9",
+    "GHSA-35jh-r3h4-6jhm",
+    "GHSA-4xc9-xhrj-v574",
+    "GHSA-f23m-r3pf-42rh",
+    "GHSA-jf85-cpcp-j695",
+    "GHSA-p6mc-m468-83gw",
+    "GHSA-r5fr-rjxr-66jc",
+    "GHSA-x5rq-j2xg-h7qm",
+    "GHSA-xxjr-mmjv-4gpg"
+  ],
+  "minimist@1.2.0": [
+    "GHSA-vh95-rmgr-6w4m",
+    "GHSA-xvch-5gv4-984h"
+  ],
+  "picocolors@1.1.1": [],
+  "ms@2.1.3": [],
+  "zod@3.23.8": [],
+  "axios@0.21.0": [
+    "GHSA-3g43-6gmg-66jw",
+    "GHSA-3p68-rc4w-qgx5",
+    "GHSA-43fc-jf86-j433",
+    "GHSA-4w2v-q235-vp99",
+    "GHSA-5c9x-8gcm-mpgx",
+    "GHSA-62hf-57xw-28j9",
+    "GHSA-6chq-wfr3-2hj9",
+    "GHSA-7q8q-rj6j-mhjq",
+    "GHSA-898c-q2cr-xwhg",
+    "GHSA-cph5-m8f7-6c5x",
+    "GHSA-fvcv-3m26-pcqx",
+    "GHSA-hfxv-24rg-xrqf",
+    "GHSA-j5f8-grm9-p9fc",
+    "GHSA-jr5f-v2jv-69x6",
+    "GHSA-m7pr-hjqh-92cm",
+    "GHSA-mmx7-hfxf-jppx",
+    "GHSA-p92q-9vqr-4j8v",
+    "GHSA-pf86-5x62-jrwf",
+    "GHSA-pjwm-pj3p-43mv",
+    "GHSA-pmwg-cvhr-8vh7",
+    "GHSA-vf2m-468p-8v99",
+    "GHSA-w9j2-pvgh-6h63",
+    "GHSA-wf5p-g6vw-rhxx",
+    "GHSA-xhjh-pmcv-23jw",
+    "GHSA-xx6v-rp6x-q39c"
+  ],
+  "follow-redirects@1.13.0": [
+    "GHSA-74fj-2j2h-c42q",
+    "GHSA-cxjh-pqwp-8mfp",
+    "GHSA-jchw-25xp-jwwc",
+    "GHSA-pw2r-vq6v-hr8c",
+    "GHSA-r4q5-vmmm-2653"
+  ],
+  "express@4.17.1": [
+    "GHSA-qw6h-vgh9-j6wx",
+    "GHSA-rv95-896h-c2vc"
+  ],
+  "body-parser@1.19.0": [
+    "GHSA-qwcr-r2fm-qrc7",
+    "GHSA-v422-hmwv-36x6"
+  ],
+  "debug@2.6.9": [],
+  "ms@2.0.0": [],
+  "qs@6.7.0": [
+    "GHSA-4mjr-xmp4-gh2g",
+    "GHSA-6rw7-vpxm-498p",
+    "GHSA-hrpp-h998-j3pp",
+    "GHSA-w7fw-mjwx-w883"
+  ],
+  "lodash@4.17.15": [
+    "GHSA-29mw-wpgm-hmr9",
+    "GHSA-35jh-r3h4-6jhm",
+    "GHSA-f23m-r3pf-42rh",
+    "GHSA-p6mc-m468-83gw",
+    "GHSA-r5fr-rjxr-66jc",
+    "GHSA-xxjr-mmjv-4gpg"
+  ],
+  "mkdirp@0.5.5": [],
+  "minimist@1.2.5": [
+    "GHSA-xvch-5gv4-984h"
+  ],
+  "handlebars@4.5.3": [
+    "GHSA-2qvq-rjwj-gvw9",
+    "GHSA-2w6w-674q-4c4q",
+    "GHSA-3mfm-83xf-c92r",
+    "GHSA-442j-39wm-28r2",
+    "GHSA-765h-qjxv-5f44",
+    "GHSA-8r5x-fm3f-whwj",
+    "GHSA-9cx6-37pm-9jff",
+    "GHSA-f2jv-r9rf-7988",
+    "GHSA-p8wg-vrv2-v86f",
+    "GHSA-xhpv-hc6g-r9c6",
+    "GHSA-xjpj-3mr7-gcpf",
+    "GHSA-xw65-4hp5-5hc7"
+  ],
+  "neo-async@2.6.2": [],
+  "source-map@0.6.1": []
+}

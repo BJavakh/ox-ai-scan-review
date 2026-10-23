@@ -1,0 +1,9 @@
+{
+  "name": "approximate-app",
+  "dependencies": {
+    "express": "^4.17.0",
+    "lodash": "~4.17.10",
+    "left-pad": "git+https://github.com/stevemao/left-pad.git"
+  },
+  "devDependencies": { "minimist": "^1.2.0" }
+}
