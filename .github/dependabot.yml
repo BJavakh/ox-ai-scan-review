@@ -13,6 +13,14 @@ updates:
       npm-minor-and-patch:
         update-types: [minor, patch]
     open-pull-requests-limit: 5
+    ignore:
+      # Majors that need a deliberate migration, not a weekly bump:
+      # typescript-eslint supports TypeScript <6.1 (docs/DEPENDENCIES.md), and the Node types
+      # must match the Node 22 LTS runtime in .nvmrc, engines and the Dockerfile.
+      - dependency-name: typescript
+        update-types: [version-update:semver-major]
+      - dependency-name: '@types/node'
+        update-types: [version-update:semver-major]
 
   - package-ecosystem: github-actions
     directory: /
@@ -27,3 +35,7 @@ updates:
       interval: weekly
     cooldown:
       default-days: 14
+    ignore:
+      # Stay on the Node 22 LTS line until the project moves deliberately (.nvmrc, engines).
+      - dependency-name: node
+        update-types: [version-update:semver-major]
