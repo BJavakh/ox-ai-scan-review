@@ -86,14 +86,15 @@ const FEATURES: Feature[] = [
     ),
   },
   {
-    title: 'Search, share, export',
-    text: 'Filter every finding by severity, type or CVE. Copy the top commands, a link, or the full JSON report.',
+    title: 'Supply-chain checks',
+    text: 'Risks that are not CVEs, each with its fix: install scripts, git sources, unpinned ranges, end-of-life Node, copyleft licences.',
     example: (
-      <div className="mini-buttons" aria-hidden="true">
-        <span className="mini-search">Search package, CVE or text</span>
-        <span className="mini-btn">Copy top commands</span>
-        <span className="mini-btn">Copy link</span>
-        <span className="mini-btn">Report JSON</span>
+      <div className="mini-verdict">
+        <DotPill tone="moderate">Medium</DotPill>
+        <p>
+          4 packages run scripts when installed.{' '}
+          <span className="mono">npm ci --ignore-scripts</span>
+        </p>
       </div>
     ),
   },

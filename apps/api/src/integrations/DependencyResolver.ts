@@ -1,4 +1,5 @@
 import type { Coverage } from '@ox-scan/shared';
+import type { ManifestFacts } from '../domain/otherRisks.js';
 import type { Dependency } from '../domain/types.js';
 
 export type ResolvedCoverage = Pick<
@@ -17,6 +18,8 @@ export interface ResolvedDependencies {
   coverage: ResolvedCoverage;
   /** Human-readable caveats shown in the report. */
   notes: string[];
+  /** Install scripts, sources, ranges, engines, licences: input for the "other risks" checks. */
+  facts: ManifestFacts;
 }
 
 /**

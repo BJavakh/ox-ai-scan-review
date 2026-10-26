@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { ScanFailure } from '../../domain/errors.js';
+import type { DeclaredDependency, InstalledPackage } from '../../domain/otherRisks.js';
 import { type Dependency, dependencyKey } from '../../domain/types.js';
 import type { ResolvedDependencies } from '../DependencyResolver.js';
 import { isValidPackageName, isValidVersion, objectEntries, stringRecordKeys } from './npmNames.js';
@@ -17,6 +18,12 @@ const entrySchema = z.object({
   optionalDependencies: z.unknown().optional(),
   peerDependencies: z.unknown().optional(),
   devDependencies: z.unknown().optional(),
+  // Metadata for the "other risks" checks. Unknown, then narrowed, so an odd value in one of
+  // these fields never drops the entry from the vulnerability scan.
+  resolved: z.unknown().optional(),
+  hasInstallScript: z.unknown().optional(),
+  license: z.unknown().optional(),
+  engines: z.unknown().optional(),
 });
 type LockEntry = z.infer<typeof entrySchema>;
 
@@ -53,6 +60,36 @@ function childNames(entry: LockEntry): string[] {
     ...stringRecordKeys(entry.optionalDependencies),
     ...stringRecordKeys(entry.peerDependencies),
   ].filter(isValidPackageName);
+}
+
+const MAX_FACT_STRING = 300;
+const factString = (value: unknown): string | null =>
+  typeof value === 'string' && value.length > 0 ? value.slice(0, MAX_FACT_STRING) : null;
+
+/** Declared specifiers of a root or workspace entry, as written in its package.json. */
+export function declaredDependencies(entry: {
+  dependencies?: unknown;
+  optionalDependencies?: unknown;
+  devDependencies?: unknown;
+}): DeclaredDependency[] {
+  const declared: DeclaredDependency[] = [];
+  const add = (field: unknown, dev: boolean) => {
+    for (const [name, spec] of objectEntries(field)) {
+      if (typeof spec === 'string' && isValidPackageName(name)) {
+        declared.push({ name, spec: spec.slice(0, MAX_FACT_STRING), dev });
+      }
+    }
+  };
+  add(entry.dependencies, false);
+  add(entry.optionalDependencies, false);
+  add(entry.devDependencies, true);
+  return declared;
+}
+
+/** `engines.node` of a package entry, if it is a string. */
+export function nodeEngine(engines: unknown): string | null {
+  if (typeof engines !== 'object' || engines === null) return null;
+  return factString((engines as Record<string, unknown>).node);
 }
 
 function sourceDependencyNames(entry: LockEntry): string[] {
@@ -134,11 +171,21 @@ export function parseLockfile(raw: unknown, lockfileVersion: number): ResolvedDe
   const introducers = computeIntroducers(entries, directPaths);
 
   const byKey = new Map<string, Dependency>();
+  const installed: InstalledPackage[] = [];
   let skipped = 0;
   for (const [path, entry] of entries) {
     if (entry.link === true) continue;
     const name = entry.name ?? nameFromPath(path);
     const version = entry.version;
+    // Recorded before the version check: git installs without a registry version matter here.
+    installed.push({
+      name: isValidPackageName(name) ? name : nameFromPath(path),
+      version: version !== undefined && isValidVersion(version) ? version : null,
+      dev: entry.dev === true,
+      hasInstallScript: entry.hasInstallScript === true,
+      resolved: factString(entry.resolved),
+      license: factString(entry.license),
+    });
     if (version === undefined || !isValidPackageName(name) || !isValidVersion(version)) {
       skipped += 1;
       continue;
@@ -164,6 +211,7 @@ export function parseLockfile(raw: unknown, lockfileVersion: number): ResolvedDe
     introducedBy: dep.direct ? [] : dep.introducedBy.sort().slice(0, MAX_INTRODUCED_BY),
   }));
   const directCount = dependencies.filter((d) => d.direct).length;
+  const root = sources.get('');
 
   return {
     dependencies,
@@ -182,5 +230,11 @@ export function parseLockfile(raw: unknown, lockfileVersion: number): ResolvedDe
             `${String(skipped)} lockfile entries without a registry version (for example git or local packages) were not checked.`,
           ]
         : [],
+    facts: {
+      lockfile: true,
+      declared: [...sources.values()].flatMap(declaredDependencies),
+      nodeEngine: nodeEngine(root?.engines),
+      installed,
+    },
   };
 }

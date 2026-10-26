@@ -221,4 +221,75 @@ describe('NpmDependencyResolver: hostile and complex lockfiles', () => {
       dev: true,
     });
   });
+
+  it('collects install scripts, sources, licences, ranges and engines for the hygiene checks', () => {
+    const { facts } = resolver.resolve(
+      lockfile({
+        '': {
+          dependencies: { a: '^1.0.0', fork: 'github:me/fork' },
+          devDependencies: { b: '*' },
+          engines: { node: '>=14' },
+        },
+        'node_modules/a': {
+          version: '1.0.0',
+          resolved: 'https://registry.npmjs.org/a/-/a-1.0.0.tgz',
+          license: 'GPL-3.0',
+          hasInstallScript: true,
+        },
+        'node_modules/b': { version: '2.0.0', dev: true, license: { type: 'MIT' } },
+        'node_modules/fork': { version: 'git', resolved: 'git+ssh://git@github.com/me/fork.git' },
+      }),
+    );
+    expect(facts).toMatchObject({
+      lockfile: true,
+      nodeEngine: '>=14',
+      declared: [
+        { name: 'a', spec: '^1.0.0', dev: false },
+        { name: 'fork', spec: 'github:me/fork', dev: false },
+        { name: 'b', spec: '*', dev: true },
+      ],
+    });
+    expect(facts.installed).toEqual([
+      {
+        name: 'a',
+        version: '1.0.0',
+        dev: false,
+        hasInstallScript: true,
+        resolved: 'https://registry.npmjs.org/a/-/a-1.0.0.tgz',
+        license: 'GPL-3.0',
+      },
+      // A non-string licence is ignored, not an error that drops the package.
+      {
+        name: 'b',
+        version: '2.0.0',
+        dev: true,
+        hasInstallScript: false,
+        resolved: null,
+        license: null,
+      },
+      // Kept even though it has no registry version, so the git source is still reported.
+      {
+        name: 'fork',
+        version: null,
+        dev: false,
+        hasInstallScript: false,
+        resolved: 'git+ssh://git@github.com/me/fork.git',
+        license: null,
+      },
+    ]);
+  });
+
+  it('collects declared ranges and engines from package.json when there is no lockfile', async () => {
+    const files = new Map([
+      ['package.json', await fixture('demo__approximate-app', 'package.json')],
+    ]);
+    const { facts } = resolver.resolve(files);
+    expect(facts.lockfile).toBe(false);
+    expect(facts.installed).toEqual([]);
+    expect(facts.declared).toContainEqual({
+      name: 'left-pad',
+      spec: 'git+https://github.com/stevemao/left-pad.git',
+      dev: false,
+    });
+  });
 });

@@ -26,6 +26,11 @@ test('scan a repository end to end and read the report', async ({ page }) => {
   await firstAction.getByText('What this upgrade fixes').click();
   await expect(firstAction.getByText('Prototype Pollution in minimist')).toBeVisible();
 
+  // Other risks: supply-chain and hygiene issues from the manifests, each with its fix.
+  await expect(page.getByRole('heading', { name: 'Supply chain and hygiene' })).toBeVisible();
+  await expect(page.getByText(/allows only end-of-life Node versions/)).toBeVisible();
+  await expect(page.getByText('npm pkg set engines.node=">=22"')).toBeVisible();
+
   // Findings: search narrows the table.
   await page.getByPlaceholder('Search package, CVE or text').fill('lodash');
   await expect(page.getByText('6 findings of 57')).toBeVisible();

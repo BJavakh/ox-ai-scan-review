@@ -1,4 +1,4 @@
-import type { Coverage, Report, Scan } from '@ox-scan/shared';
+import type { Coverage, OtherRisk, Report, Scan } from '@ox-scan/shared';
 import type { Analysis } from '../domain/analysis.js';
 import type { SummaryInput } from '../domain/summary.js';
 import { explainRisk } from '../domain/templateSummary.js';
@@ -11,6 +11,7 @@ export function buildReport(
   analysis: Analysis,
   summaryInput: SummaryInput,
   summary: WrittenSummary,
+  otherRisks: OtherRisk[],
   notes: string[],
   generatedAt: string,
 ): Report {
@@ -43,6 +44,7 @@ export function buildReport(
       };
     }),
     findings: analysis.findings,
+    otherRisks,
     stats: analysis.stats,
     coverage,
     notes,

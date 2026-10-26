@@ -1,6 +1,7 @@
 import type { FastifyBaseLogger } from 'fastify';
 import type { Coverage, Report, ScanStatus, StepName } from '@ox-scan/shared';
 import { analyze } from '../domain/analysis.js';
+import { findOtherRisks } from '../domain/otherRisks.js';
 import { ScanFailure, toScanError } from '../domain/errors.js';
 import { assertTransition, computeProgress } from '../domain/stateMachine.js';
 import { buildSummaryInput } from '../domain/summary.js';
@@ -180,6 +181,7 @@ export class ScanOrchestrator {
       analysis,
       summaryInput,
       summary,
+      findOtherRisks(resolved.facts),
       notes,
       this.now().toISOString(),
     );

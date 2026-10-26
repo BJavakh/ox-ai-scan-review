@@ -4,6 +4,8 @@ Paste a public GitHub repository URL. Scan Review reads its npm dependencies at 
 
 The answer is a short, ranked list of **upgrades** (not a list of CVEs), each with the exact command to run, a plain-language explanation of the top risks, and an honest statement of what was and was not checked.
 
+**Live demo: https://ox-scan-review.onrender.com** (Render free tier: the first request after a quiet period takes up to a minute while the instance wakes up; scans are kept in memory, so a restart clears them).
+
 ![Report for a real repository](docs/screenshots/report.jpg)
 
 ---
@@ -55,11 +57,12 @@ curl -s localhost:8787/api/scans/<scanId>/report   # the report
 
 The customer does not lack data; every scanner prints hundreds of advisories. They lack a **decision**: which few things to do this week, and why. So the product is judged on how fast a repo owner goes from a URL to "I know the 1 to 3 upgrades that remove most of my risk". Full interpretation, personas and user stories: [`docs/BRD.md`](docs/BRD.md).
 
-### Three ideas the design is built on
+### Four ideas the design is built on
 
 1. **Actions, not findings.** Findings are grouped by the upgrade that fixes them: _"Upgrade lodash 4.17.15 to 4.18.0: fixes 6 issues (highest: high) in a direct production dependency."_ The report leads with these actions; the full findings table comes last.
 2. **Deterministic ranking; AI only explains.** Severity, scores, ranking, commands and the risk level come from data and a documented formula. The LLM writes the headline and explanations from the already-ranked results, and its output is schema-validated and checked against the findings. If it is missing, fails or invents anything, a template is used, and the report shows which one wrote the summary.
-3. **Honest coverage.** Every report states the commit, which manifest was used, whether versions are exact (lockfile) or approximate (`package.json` ranges), how many packages were checked, and what was not scanned. A clean result is never mistaken for "not scanned".
+3. **Beyond CVEs, same rules.** The manifests also reveal risks no advisory database lists: packages that run install scripts, dependencies from git or plain HTTP, `*`/`latest` ranges, a missing lockfile, an end-of-life `engines.node`, strong copyleft licences in production, and packages installed in many versions. These are found by fixed rules, ranked separately from vulnerabilities, and each comes with its fix (ADR-024).
+4. **Honest coverage.** Every report states the commit, which manifest was used, whether versions are exact (lockfile) or approximate (`package.json` ranges), how many packages were checked, and what was not scanned. A clean result is never mistaken for "not scanned".
 
 ### The flow
 
@@ -70,7 +73,7 @@ The customer does not lack data; every scanner prints hundreds of advisories. Th
 1. **Submit a URL.** Validated in the browser and again on the server (`https://github.com/{owner}/{repo}`, optional `.git` or `/tree/{ref}`).
 2. **Start a scan.** `POST /api/scans` returns immediately; an identical in-flight scan is reused.
 3. **Follow progress.** Five pipeline steps drawn as a live timeline from real step timings (Server-Sent Events, with polling as a fallback). Failures explain themselves and offer "Scan again" when retrying can help.
-4. **Read the result,** in this order: risk level and headline with "your next steps"; **Fix first** (ranked upgrades, copyable commands, what each upgrade fixes, a legend for every label); **top risks explained**; **what we checked**; **every finding**, searchable and filterable. Copy a link, the top commands, or the JSON.
+4. **Read the result,** in this order: risk level and headline with "your next steps"; **Fix first** (ranked upgrades, copyable commands, what each upgrade fixes, a legend for every label); **top risks explained**; **other risks** (supply chain and hygiene, each with its fix); **what we checked**; **every finding**, searchable and filterable. Copy a link, the top commands, or the JSON.
 5. **Act.** Run the commands, commit, scan again.
 
 ---
@@ -159,7 +162,7 @@ The service takes an untrusted URL, reads untrusted content and sends some of it
 ```bash
 npm run typecheck   # strict TS in all workspaces
 npm run lint        # typescript-eslint strict-type-checked + react-hooks
-npm test            # 289 unit and integration tests: 221 API, 57 shared, 11 web
+npm test            # 329 unit and integration tests: 261 API, 57 shared, 11 web
 npm run test:e2e    # Playwright smoke tests in a real browser (offline mock mode, own ports)
 ```
 

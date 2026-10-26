@@ -107,6 +107,43 @@ export const reportStatsSchema = z.object({
 });
 export type ReportStats = z.infer<typeof reportStatsSchema>;
 
+/**
+ * Supply-chain and hygiene risks found in the manifests themselves, as opposed to known
+ * vulnerabilities. Detected by fixed rules; each carries the fix. Ranked separately from findings.
+ */
+export const otherRiskKindSchema = z.enum([
+  'insecure-download',
+  'non-registry-source',
+  'install-scripts',
+  'no-lockfile',
+  'unpinned-range',
+  'unsupported-node',
+  'copyleft-license',
+  'duplicate-versions',
+]);
+export type OtherRiskKind = z.infer<typeof otherRiskKindSchema>;
+
+export const otherRiskLevelSchema = z.enum(['high', 'medium', 'low']);
+export type OtherRiskLevel = z.infer<typeof otherRiskLevelSchema>;
+
+export const MAX_OTHER_RISK_PACKAGES = 10;
+
+export const otherRiskSchema = z.object({
+  kind: otherRiskKindSchema,
+  level: otherRiskLevelSchema,
+  title: z.string().max(200),
+  /** Why it matters, in plain language. */
+  why: z.string().max(600),
+  /** What to do about it. */
+  fix: z.string().max(600),
+  /** A command that applies or starts the fix, when one exists. */
+  command: z.string().max(300).nullable(),
+  /** Up to MAX_OTHER_RISK_PACKAGES examples, most important first. */
+  packages: z.array(z.string().max(300)).max(MAX_OTHER_RISK_PACKAGES),
+  totalPackages: z.number().int().nonnegative(),
+});
+export type OtherRisk = z.infer<typeof otherRiskSchema>;
+
 export const reportSchema = z.object({
   scanId: z.uuid(),
   repo: repoRefSchema,
@@ -118,6 +155,7 @@ export const reportSchema = z.object({
   actions: z.array(actionSchema),
   topRisks: z.array(topRiskSchema).max(5),
   findings: z.array(findingSchema),
+  otherRisks: z.array(otherRiskSchema).max(otherRiskKindSchema.options.length),
   stats: reportStatsSchema,
   coverage: coverageSchema,
   notes: z.array(z.string()),

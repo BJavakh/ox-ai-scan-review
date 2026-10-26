@@ -5,6 +5,7 @@ import { DotPill, RiskPill, SeverityPill, dependencyLabel } from '../components/
 import { FindingsTable } from '../components/FindingsTable';
 import { CopyButton } from '../components/CopyButton';
 import { Legend } from '../components/Legend';
+import { OtherRisks } from '../components/OtherRisks';
 import { RescanButton } from '../components/RescanButton';
 import { Band, Panel, SectionHead } from '../components/Layout';
 import { ReportNav, type ReportSection, scrollToSection } from '../components/ReportNav';
@@ -30,6 +31,7 @@ function sectionsFor(report: Report): ReportSection[] {
           { id: 'fix-first', label: 'Fix first' },
           { id: 'top-risks', label: 'Top risks' },
         ]),
+    ...(report.otherRisks.length > 0 ? [{ id: 'other-risks', label: 'Other risks' }] : []),
     { id: 'coverage', label: 'What we checked' },
     ...(clean ? [] : [{ id: 'findings', label: 'All findings' }]),
   ];
@@ -318,6 +320,12 @@ function Coverage({
       `${coverage.packagesChecked.toLocaleString()} checked · ${coverage.directDependencies.toLocaleString()} direct · ${coverage.transitiveDependencies.toLocaleString()} transitive`,
     ],
     [
+      'Supply chain',
+      coverage.manifest === 'package-lock.json'
+        ? 'Git and URL sources, plain-HTTP downloads, install scripts, version ranges, Node engine, licences, duplicate versions'
+        : 'Git and URL sources, version ranges, Node engine, missing lockfile (the rest needs a lockfile)',
+    ],
+    [
       'Not checked',
       [
         coverage.skippedPackages > 0
@@ -388,6 +396,10 @@ export function ReportView({ report, scan }: { report: Report; scan: Scan }) {
   const indexOf = (id: string) =>
     String(sections.findIndex((s) => s.id === id) + 1).padStart(2, '0');
   const clean = report.findings.length === 0;
+  // Bands alternate white and paper below the hero; the "nothing to upgrade" band comes first.
+  const bands = [...(clean ? ['clean'] : []), ...sections.map((s) => s.id)];
+  const toneOf = (id: string): 'white' | 'paper' =>
+    bands.indexOf(id) % 2 === 0 ? 'white' : 'paper';
   useDocumentTitle(`${report.repo.owner}/${report.repo.name} · ${RISK_LABELS[report.riskLevel]}`);
 
   // The report replaces the progress screen in place; start reading it from the top.
@@ -416,14 +428,12 @@ export function ReportView({ report, scan }: { report: Report; scan: Scan }) {
       )}
       {!clean && <FixFirst report={report} index={indexOf('fix-first')} />}
       {!clean && <TopRisks report={report} index={indexOf('top-risks')} />}
-      <Coverage
-        report={report}
-        scan={scan}
-        index={indexOf('coverage')}
-        tone={clean ? 'paper' : 'white'}
-      />
+      {report.otherRisks.length > 0 && (
+        <OtherRisks report={report} index={indexOf('other-risks')} tone={toneOf('other-risks')} />
+      )}
+      <Coverage report={report} scan={scan} index={indexOf('coverage')} tone={toneOf('coverage')} />
       {!clean && (
-        <Band tone="paper" id="findings" labelledBy="findings-title">
+        <Band tone={toneOf('findings')} id="findings" labelledBy="findings-title">
           <SectionHead
             index={indexOf('findings')}
             label="All findings"

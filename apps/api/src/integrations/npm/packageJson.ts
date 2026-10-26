@@ -2,7 +2,7 @@ import semver from 'semver';
 import { ScanFailure } from '../../domain/errors.js';
 import { type Dependency, dependencyKey } from '../../domain/types.js';
 import type { ResolvedDependencies } from '../DependencyResolver.js';
-import { MAX_PACKAGES } from './lockfile.js';
+import { MAX_PACKAGES, declaredDependencies, nodeEngine } from './lockfile.js';
 import { isValidPackageName, objectEntries } from './npmNames.js';
 
 const PROD_FIELDS = ['dependencies', 'optionalDependencies', 'peerDependencies'] as const;
@@ -62,5 +62,11 @@ export function parsePackageJson(raw: unknown, notes: string[]): ResolvedDepende
           ]
         : []),
     ],
+    facts: {
+      lockfile: false,
+      declared: declaredDependencies(pkg),
+      nodeEngine: nodeEngine(pkg.engines),
+      installed: [],
+    },
   };
 }

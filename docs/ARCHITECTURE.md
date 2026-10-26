@@ -269,6 +269,23 @@ When no lockfile was used (`coverage.accuracy` is `approximate`), the UI badge a
 
 The top 5 findings by score, **at most one per package** (so five lodash advisories do not crowd out everything else). These are what the summary explains.
 
+### 5.6 Other risks (supply chain and hygiene)
+
+`domain/otherRisks.ts` turns `ManifestFacts` into at most one entry per kind. The facts are collected by the resolver during the parse it already does (no second pass over a large lockfile, no extra network calls): per installed package its `resolved` URL, `hasInstallScript` and `license`; the declared specifiers of the root and workspace packages; and the root `engines.node`.
+
+| Kind                  | Rule                                                                                              | Level                                  |
+| --------------------- | ------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| `insecure-download`   | `resolved` starts with `http://`                                                                  | high                                   |
+| `non-registry-source` | a declared git, GitHub-shorthand or URL specifier, or a git `resolved` (local `file:` is ignored) | high if any is production, else medium |
+| `install-scripts`     | `hasInstallScript: true`                                                                          | medium                                 |
+| `no-lockfile`         | only `package.json` was found                                                                     | medium                                 |
+| `unpinned-range`      | a dist-tag (`latest`) or a range with no upper bound (`*`, `x`, `>=1`)                            | medium in production, else low         |
+| `unsupported-node`    | `engines.node` does not intersect `SUPPORTED_NODE_RANGE` (`>=22` as of 2026-10-26)                | medium                                 |
+| `copyleft-license`    | a production package's SPDX licence is GPL, AGPL or SSPL, unless the expression offers `OR`       | medium                                 |
+| `duplicate-versions`  | one package installed in 3 or more versions                                                       | low                                    |
+
+These are ranked separately from vulnerability findings and never change the risk level: a licence or an install script is a different kind of risk from a known exploit, and mixing them would make the ranking harder to trust. The LLM does not see or write them.
+
 ## 6. Idempotency and caching
 
 - **In-flight dedupe at submit time:** key `owner/repo#ref` (lower-cased owner and repo; ref or `HEAD`). If a non-terminal scan exists for the key, `POST /api/scans` returns `200` with that scan's ID and `deduplicated: true`. The commit SHA is not known at submit time without calling GitHub, and we keep outbound I/O off the request path (see `DECISIONS.md` ADR-009).

@@ -62,6 +62,11 @@ describe('happy path', () => {
     expect(report.stats.totalFindings).toBe(report.findings.length);
     expect(report.actions.length).toBeLessThan(report.findings.length);
 
+    // Manifest hygiene, ranked separately from vulnerabilities, each with a fix.
+    expect(report.otherRisks.map((r) => r.kind)).toEqual(['unpinned-range', 'unsupported-node']);
+    expect(report.otherRisks[0]?.packages).toEqual(['mkdirp (*)']);
+    expect(report.otherRisks.every((r) => r.fix.length > 0)).toBe(true);
+
     // One action per vulnerable package, sorted by score.
     const scores = report.actions.map((a) => a.score);
     expect(scores).toEqual([...scores].sort((a, b) => b - a));

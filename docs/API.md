@@ -147,6 +147,8 @@ Current state of a scan. Use this for polling (the web client polls every 1.5 s 
 }
 ```
 
+`otherRisks` kinds (at most one entry each, ordered high, medium, low): `insecure-download` (plain-HTTP `resolved`, high), `non-registry-source` (git or URL dependencies, high in production), `install-scripts`, `no-lockfile`, `unpinned-range` (`*`, `latest`, no upper bound), `unsupported-node` (`engines.node` allows only end-of-life lines), `copyleft-license` (GPL, AGPL or SSPL in production), `duplicate-versions` (3 or more installed versions, low). `packages` holds up to 10 examples, production first; `totalPackages` is the full count. Checks that need a lockfile do not run for a `package.json`-only scan.
+
 Scan error codes: `REPO_NOT_FOUND`, `REPO_EMPTY`, `REF_NOT_FOUND`, `GITHUB_RATE_LIMITED`, `GITHUB_UNAVAILABLE`, `NO_SUPPORTED_MANIFEST`, `MANIFEST_TOO_LARGE`, `MANIFEST_INVALID`, `TOO_MANY_PACKAGES`, `VULN_SOURCE_UNAVAILABLE`, `SCAN_TIMEOUT`, `SERVER_SHUTTING_DOWN` (retryable; the server stopped while the scan was queued or running), `INTERNAL_ERROR`.
 
 Errors: `400 VALIDATION_ERROR` (ID is not a UUID), `404 NOT_FOUND`.
@@ -236,6 +238,18 @@ data: {"status":"checking_vulnerabilities","progress":33}
       "introducedBy": [],
       "score": 7,
       "advisoryUrl": "https://osv.dev/vulnerability/GHSA-35jh-r3h4-6jhm"
+    }
+  ],
+  "otherRisks": [
+    {
+      "kind": "install-scripts",
+      "level": "medium",
+      "title": "4 packages run scripts when installed",
+      "why": "Install scripts run with your permissions on every developer machine and CI runner. ...",
+      "fix": "Install with scripts disabled in CI and allow only the packages that need them. ...",
+      "command": "npm ci --ignore-scripts",
+      "packages": ["core-js@3.6.4", "fsevents@2.3.2", "kerberos@0.0.24", "nodemon@2.0.7"],
+      "totalPackages": 4
     }
   ],
   "stats": {
