@@ -21,6 +21,13 @@ SCANNER_MODE=mock npm run dev    # fully offline demo with recorded fixtures
 
 Open **http://localhost:5180**. The API listens on **http://localhost:8787** (the web dev server proxies `/api`).
 
+Or with Docker, the production image (API and web on one origin, no Node needed):
+
+```bash
+docker compose up --build                     # offline demo on http://localhost:8787
+SCANNER_MODE=live docker compose up --build   # real scans; keys are read from .env if present
+```
+
 Optional, in a `.env` file at the repository root (copy `.env.example`):
 
 | Variable            | Why you may want it                                                                                                                                          |
@@ -138,12 +145,21 @@ The service takes an untrusted URL, reads untrusted content and sends some of it
 
 ---
 
+## Deployment
+
+- **Image:** a multi-stage `Dockerfile` (Node 22 Alpine pinned by digest, production dependencies only, non-root, read-only filesystem friendly, `HEALTHCHECK`). The API serves the built web app, so the whole product is one container and one URL (ADR-023).
+- **Render:** `render.yaml` is a Blueprint for one Docker web service: live mode, health check on `/api/health`, one trusted proxy hop for correct client IPs, and a lower per-client scan quota. `GITHUB_TOKEN` and `ANTHROPIC_API_KEY` are entered in the Render dashboard, never committed. Deploys run on every push to `main`.
+- **CI** builds the image and checks it end to end: healthy, non-root, both CSPs, and a clean exit on `docker stop`.
+- At scale: API replicas from the same image behind a load balancer, the web build on a CDN, and Postgres, BullMQ and Redis in place of the in-process store, queue and cache ([`ARCHITECTURE.md` sections 10 and 12](docs/ARCHITECTURE.md#12-deployment)).
+
+---
+
 ## Testing
 
 ```bash
 npm run typecheck   # strict TS in all workspaces
 npm run lint        # typescript-eslint strict-type-checked + react-hooks
-npm test            # 282 unit and integration tests: 214 API, 57 shared, 11 web
+npm test            # 289 unit and integration tests: 221 API, 57 shared, 11 web
 npm run test:e2e    # Playwright smoke tests in a real browser (offline mock mode, own ports)
 ```
 

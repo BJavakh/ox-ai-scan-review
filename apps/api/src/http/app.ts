@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
+import fastifyStatic from '@fastify/static';
 import rateLimit from '@fastify/rate-limit';
 import Fastify, { type FastifyError, type FastifyInstance } from 'fastify';
 import type { Env } from '../config/env.js';
@@ -11,6 +12,22 @@ import { registerScanRoutes } from './routes/scans.js';
 import { StreamLimiter } from './sse.js';
 
 const REQUEST_ID = /^[A-Za-z0-9-]{1,64}$/;
+/**
+ * CSP for the web app's documents (see docs/SECURITY.md). API responses keep helmet's stricter
+ * `default-src 'none'`. No inline scripts or styles, fonts are self-hosted.
+ */
+export const WEB_CSP = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self'",
+  "font-src 'self'",
+  "img-src 'self' data:",
+  "connect-src 'self'",
+  "frame-ancestors 'none'",
+  "base-uri 'none'",
+  "form-action 'self'",
+].join('; ');
+
 /** How long shutdown waits for aborted scans to record their final state. */
 export const SHUTDOWN_DRAIN_MS = 5_000;
 
@@ -74,9 +91,14 @@ export async function buildApp(
   env: Env,
   options: BuildAppOptions = {},
 ): Promise<{ app: FastifyInstance; services: Services }> {
+  // Trust only the nearest N proxies. `true` would trust every X-Forwarded-For entry, which
+  // lets a client pick its own IP and dodge rate limits.
+  const hops = env.TRUST_PROXY_HOPS;
+  const trustProxy = (_address: string, hop: number) => hop < hops;
   const app = Fastify({
     logger: env.NODE_ENV === 'test' ? false : { level: env.LOG_LEVEL, redact: LOG_REDACT_PATHS },
     bodyLimit: 16 * 1024,
+    trustProxy,
     // Requests during shutdown get the standard error envelope from the hook below instead.
     return503OnClosing: false,
     genReqId: (req) => {
@@ -164,5 +186,27 @@ export async function buildApp(
   }));
 
   registerScanRoutes(app, services, streams, options.heartbeatMs);
+
+  if (env.WEB_DIST_DIR) await serveWebApp(app, env.WEB_DIST_DIR);
   return { app, services };
+}
+
+/**
+ * Production single-origin mode: the built web app is served next to the API, so the browser
+ * needs no CORS and SSE goes straight to the API. Hashed assets are immutable; index.html is
+ * always revalidated so a deploy is picked up on the next load.
+ */
+async function serveWebApp(app: FastifyInstance, root: string): Promise<void> {
+  await app.register(fastifyStatic, {
+    root,
+    cacheControl: false,
+    // Runs after helmet, so the web policy replaces the API's `default-src 'none'` here only.
+    setHeaders: (reply, path) => {
+      reply.header('content-security-policy', WEB_CSP);
+      reply.header(
+        'cache-control',
+        path.includes('/assets/') ? 'public, max-age=31536000, immutable' : 'no-cache',
+      );
+    },
+  });
 }

@@ -1,0 +1,25 @@
+# Full app on http://localhost:8787 (API and web on one origin).
+#
+#   docker compose up --build                       # offline demo, no keys needed
+#   SCANNER_MODE=live docker compose up --build     # real scans; keys are read from your shell or .env
+services:
+  app:
+    build: .
+    image: scan-review:local
+    ports:
+      - '8787:8787'
+    environment:
+      SCANNER_MODE: ${SCANNER_MODE:-mock}
+      # Empty means "not set": live scans then use GitHub's anonymous limit and the template summary.
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      SCANS_PER_HOUR: ${SCANS_PER_HOUR:-30}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped
+    # Give the graceful shutdown (5 s drain, 10 s hard stop) time to finish.
+    stop_grace_period: 15s

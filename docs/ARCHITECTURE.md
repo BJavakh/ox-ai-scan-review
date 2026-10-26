@@ -359,3 +359,17 @@ What this says, and what was done about it:
 - **Advisory hydration dominates.** It is one request per advisory. Two changes: parallelism went from 8 to 16 (about half the cold time), and the cross-scan `AdvisoryCache` removes those requests entirely for advisories seen before, which is most of them across npm projects. A repeat or overlapping scan's OSV step drops to the single `querybatch` call.
 - **The LLM is the second largest cost** and is bounded by `LLM_TIMEOUT_MS`; the template summary is used on timeout. Next step (not built): complete the report with the template summary immediately and stream the AI summary in afterwards, so the report never waits on the model.
 - **Where CPU could matter:** a very large monorepo lockfile (tens of MB). `JSON.parse` plus the bounded graph walk (`MAX_GRAPH_STEPS`) could hold the event loop for hundreds of milliseconds and stall other clients' SSE. The fix is to run `resolve()` in a `worker_threads` pool (it is already a pure function of strings to data), measured with `monitorEventLoopDelay` first; at real scale, scans run in separate worker processes behind the queue (section 10), which isolates this anyway.
+
+## 12. Deployment
+
+| Piece       | Today                                                                                                                                                      |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Image       | `Dockerfile`: build stage compiles shared, API and web; runtime stage has production dependencies, compiled output, fixtures (mock mode) and the web build |
+| Process     | `node apps/api/dist/server.js` as PID 1, user `node`, so SIGTERM reaches the graceful shutdown directly                                                    |
+| Origin      | One: `/api/*` is the API, everything else is the web build (`WEB_DIST_DIR`), with separate CSPs                                                            |
+| Health      | `HEALTHCHECK` and Render's health check both use `GET /api/health`                                                                                         |
+| Local       | `docker compose up --build` (mock mode by default, read-only filesystem, no capabilities)                                                                  |
+| Public demo | Render Blueprint (`render.yaml`): live mode, `TRUST_PROXY_HOPS=1`, `SCANS_PER_HOUR=10`, secrets entered in the dashboard                                   |
+| CI          | Builds the image, checks it runs as non-root and turns healthy, checks both CSPs, and checks that `docker stop` exits 0 (graceful shutdown)                |
+
+At scale the same image runs as API replicas behind a load balancer, with the web build moved to a CDN and the in-process pieces replaced as in section 10.

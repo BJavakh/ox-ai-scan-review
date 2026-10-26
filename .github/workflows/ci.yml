@@ -15,7 +15,8 @@ concurrency:
 
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    # Pinned runner image: ubuntu-latest moves to a new release on GitHub's schedule.
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       # Actions are pinned to full commit SHAs, not mutable tags.
@@ -59,3 +60,34 @@ jobs:
           if grep -rn "dangerouslySetInnerHTML" apps/web/src --include=*.tsx | grep -v "^\s*//"; then
             echo "dangerouslySetInnerHTML is not allowed (docs/SECURITY.md section 6)"; exit 1
           fi
+
+  # The production image: builds, starts as a non-root user, serves the web app and the API on
+  # one origin with the right CSPs, reports healthy, and exits cleanly on SIGTERM.
+  docker:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build image
+        run: docker build -t scan-review:ci .
+
+      - name: Smoke test the container
+        run: |
+          docker run -d --name app -p 8787:8787 --read-only --cap-drop ALL scan-review:ci
+          for i in $(seq 1 30); do
+            [ "$(docker inspect -f '{{.State.Health.Status}}' app)" = healthy ] && break
+            sleep 2
+          done
+          docker inspect -f '{{.State.Health.Status}}' app | grep -qx healthy
+          test "$(docker exec app id -u)" != 0
+          curl -fsS http://127.0.0.1:8787/api/health | grep -q '"mode":"mock"'
+          curl -fsSI http://127.0.0.1:8787/ | grep -qi "content-security-policy: default-src 'self'"
+          curl -fsSI http://127.0.0.1:8787/api/health | grep -qi "content-security-policy: default-src 'none'"
+
+      - name: Graceful shutdown on SIGTERM
+        run: |
+          docker stop -t 15 app
+          test "$(docker inspect -f '{{.State.ExitCode}}' app)" = 0

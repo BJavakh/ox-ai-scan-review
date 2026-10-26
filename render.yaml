@@ -1,0 +1,27 @@
+# Render Blueprint: one Docker web service serving the API and the web app on one origin.
+# Dashboard: New > Blueprint > pick this repository. Secrets are entered there, never committed.
+services:
+  - type: web
+    name: ox-scan-review
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    envVars:
+      - key: SCANNER_MODE
+        value: live
+      # Render's load balancer is the one proxy in front of the app; it appends the client IP.
+      - key: TRUST_PROXY_HOPS
+        value: '1'
+      # A public demo: keep each visitor well inside the shared GitHub quota.
+      - key: SCANS_PER_HOUR
+        value: '10'
+      - key: LOG_LEVEL
+        value: info
+      # Read-only, public-repo-only token (no scopes): 5,000 GitHub requests per hour.
+      - key: GITHUB_TOKEN
+        sync: false
+      # Optional. Leave empty for template summaries; if set, put a monthly spend limit on the key.
+      - key: ANTHROPIC_API_KEY
+        sync: false

@@ -1,0 +1,16 @@
+# Keep secrets, local builds and tooling out of the build context.
+.env
+.env.*
+!.env.example
+.git
+.github
+**/node_modules
+**/dist
+**/*.tsbuildinfo
+coverage
+test-results
+playwright-report
+e2e
+docs
+*.log
+.DS_Store

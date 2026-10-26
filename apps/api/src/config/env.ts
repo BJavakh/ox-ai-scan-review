@@ -25,6 +25,13 @@ export const envSchema = z.object({
   SCAN_CONCURRENCY: intInRange(1, 16, 2),
   /** New scans per client (IPv4 address or IPv6 /64) per hour. */
   SCANS_PER_HOUR: intInRange(1, 10_000, 30),
+  /**
+   * Reverse proxies in front of the API (0 = none). Counting hops, instead of trusting every
+   * X-Forwarded-For entry, stops clients from spoofing their IP to dodge rate limits.
+   */
+  TRUST_PROXY_HOPS: intInRange(0, 5, 0),
+  /** Absolute path of the built web app. When set, the API also serves it (single origin). */
+  WEB_DIST_DIR: z.string().trim().min(1).optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

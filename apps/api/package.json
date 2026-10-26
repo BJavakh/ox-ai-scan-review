@@ -15,6 +15,7 @@
     "@fastify/cors": "11.3.1",
     "@fastify/helmet": "13.1.2",
     "@fastify/rate-limit": "11.2.1",
+    "@fastify/static": "10.1.6",
     "@ox-scan/shared": "*",
     "fastify": "5.12.7",
     "semver": "7.8.5",

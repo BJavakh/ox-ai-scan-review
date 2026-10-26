@@ -89,10 +89,12 @@ The LLM sees data that an attacker can influence: package names in a lockfile th
 ## 9. HTTP hardening
 
 - `@fastify/helmet` with a strict CSP for API responses: `default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'`. JSON responses never need to load anything.
-- The production web build should be served with `default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'`. The built app uses no inline scripts or style elements (React sets dynamic widths through the CSSOM, which CSP does not block), and fonts are self-hosted, so this works without `unsafe-inline` or third-party origins.
+- The production web build is served (by the API itself in the Docker image, `WEB_DIST_DIR`) with `default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'`. The built app uses no inline scripts or style elements (React sets dynamic widths through the CSSOM, which CSP does not block), and fonts are self-hosted, so this works without `unsafe-inline` or third-party origins.
 - CORS is restricted to `WEB_ORIGIN` (default `http://localhost:5180`), methods `GET, POST`, no credentials. In development the Vite proxy makes requests same-origin anyway.
 - `X-Request-Id` on every response: a client-supplied ID is accepted only if it matches `^[A-Za-z0-9-]{1,64}$` (prevents log injection); otherwise a UUID is generated.
-- The server binds to `127.0.0.1` by default (`HOST`).
+- The server binds to `127.0.0.1` by default (`HOST`); the container sets `0.0.0.0`.
+- Behind a reverse proxy, `TRUST_PROXY_HOPS` sets how many proxies are trusted (Render: 1). The client IP is the address the nearest trusted proxy appended, never the leftmost `X-Forwarded-For` entry, which the client controls; with the default 0 the header is ignored. Rate limits and the scan quota key on that IP.
+- **Container:** multi-stage build, production dependencies only, no dependency install scripts, runs as the unprivileged `node` user, works with a read-only root filesystem and all Linux capabilities dropped (`docker-compose.yml` sets both, and CI starts it that way), and `.dockerignore` keeps `.env` and `.git` out of the build context.
 - `X-Powered-By` is not sent; error responses never include stack traces.
 
 ## 10. Supply chain of this project
@@ -101,7 +103,7 @@ The LLM sees data that an attacker can influence: package names in a lockfile th
 - All dependencies are pinned to exact versions (`save-exact=true` in `.npmrc`).
 - We chose versions that had been published for at least two weeks at the time of writing, as a simple cooldown against freshly compromised releases.
 - `npm audit --audit-level=high` runs in CI.
-- Runtime dependencies are kept to what the server needs: Fastify and three official plugins, Zod, semver, and the official Anthropic SDK. Every dependency is justified in `docs/DEPENDENCIES.md`. Retries, concurrency limiting, CVSS scoring and SSE are implemented in-house in a few dozen lines each instead of adding packages.
+- Runtime dependencies are kept to what the server needs: Fastify and four official plugins, Zod, semver, and the official Anthropic SDK. Every dependency is justified in `docs/DEPENDENCIES.md`. Retries, concurrency limiting, CVSS scoring and SSE are implemented in-house in a few dozen lines each instead of adding packages.
 
 ## 11. Known limitations
 
