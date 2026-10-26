@@ -37,9 +37,7 @@ const input = buildSummaryInput(
 const goodOutput = {
   headline: 'High risk: upgrade lodash to 4.17.21.',
   overview: 'One direct production dependency, lodash@4.17.15, has a high-severity issue.',
-  riskExplanations: [
-    { findingId: 'GHSA-35jh-r3h4-6jhm', explanation: 'Upgrade lodash@4.17.15 to 4.17.21.' },
-  ],
+  riskExplanations: { 'GHSA-35jh-r3h4-6jhm': 'Upgrade lodash@4.17.15 to 4.17.21.' },
 };
 
 function fakeClient(response: Partial<Anthropic.Message> | Error) {
@@ -75,7 +73,12 @@ describe('AnthropicSummaryGenerator', () => {
     ];
     expect(params.model).toBe('claude-sonnet-5-5');
     expect(params.messages).toEqual([{ role: 'user', content: JSON.stringify(input) }]);
-    expect(JSON.stringify(params.output_config)).toContain('"enum":["GHSA-35jh-r3h4-6jhm"]');
+    // One required key per top risk: the API cannot return a missing or repeated explanation.
+    const schema = JSON.stringify(params.output_config);
+    expect(schema).toContain('"required":["GHSA-35jh-r3h4-6jhm"]');
+    expect(result.riskExplanations).toEqual([
+      { findingId: 'GHSA-35jh-r3h4-6jhm', explanation: 'Upgrade lodash@4.17.15 to 4.17.21.' },
+    ]);
     expect(params.system).toContain('untrusted data');
     expect(options.maxRetries).toBe(0);
   });
@@ -91,6 +94,16 @@ describe('AnthropicSummaryGenerator', () => {
         ] as Anthropic.ContentBlock[],
       },
       /not valid JSON/,
+    ],
+    [
+      'an explanation for an unknown finding',
+      { content: text({ ...goodOutput, riskExplanations: { 'GHSA-xxxx-xxxx-xxxx': 'x' } }) },
+      /failed validation/,
+    ],
+    [
+      'a missing explanation',
+      { content: text({ ...goodOutput, riskExplanations: {} }) },
+      /failed validation/,
     ],
     [
       'an invented advisory',

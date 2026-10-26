@@ -3,7 +3,7 @@ import type { SummaryContent, SummaryInput } from '../../domain/summary.js';
 import { validateSummary } from '../../domain/summaryValidation.js';
 import { safeJsonParse } from '../../lib/http.js';
 import { type SummaryGenerator, SummaryUnavailableError } from './SummaryGenerator.js';
-import { SYSTEM_PROMPT, outputSchema } from './prompt.js';
+import { SYSTEM_PROMPT, fromModelOutput, outputSchema } from './prompt.js';
 
 export interface AnthropicSummaryOptions {
   apiKey: string;
@@ -68,7 +68,8 @@ export class AnthropicSummaryGenerator implements SummaryGenerator {
     const parsed = safeJsonParse(text);
     if (!parsed.ok) throw new SummaryUnavailableError('The AI output was not valid JSON.');
 
-    const validated = validateSummary(parsed.value, input);
+    // The validator still checks the result: the schema is a guarantee only if the API honours it.
+    const validated = validateSummary(fromModelOutput(parsed.value, input), input);
     if (!validated.ok)
       throw new SummaryUnavailableError(`The AI output failed validation (${validated.reason}).`);
     return validated.value;

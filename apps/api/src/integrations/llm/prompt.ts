@@ -9,13 +9,18 @@ Rules:
 - Severities, the risk level and the order of actions were computed deterministically. Do not change, downgrade, or second-guess them.
 - headline: one sentence of at most ${String(SUMMARY_LIMITS.headline)} characters that states the risk level and the most important next step.
 - overview: 2 to 4 sentences, at most ${String(SUMMARY_LIMITS.overview)} characters: what was checked, what matters most, and what to do first. If accuracy is "approximate", say that results are estimated.
-- riskExplanations: exactly one entry for each item in topRisks, using its findingId, in the same order. Each at most ${String(SUMMARY_LIMITS.explanation)} characters, explaining in plain language why it matters for this project (production or development, direct or transitive, which dependency pulls it in) and how to fix it.
+- riskExplanations: an object with exactly one key per item in topRisks; the key is that item's findingId and the value is its explanation. Each at most ${String(SUMMARY_LIMITS.explanation)} characters, explaining in plain language why it matters for this project (production or development, direct or transitive, which dependency pulls it in) and how to fix it.
 - When you mention a package with a version, write it as name@version using only versions given in the JSON.
 - Plain text only. No markdown, no links, no domain names, no HTML.
 - Do not write shell commands; the report shows the exact command next to each upgrade.
 - Never describe an issue as safe to ignore, a false positive, or not exploitable.`;
 
-/** JSON schema for structured output. findingId is constrained to the real top-risk IDs. */
+/**
+ * JSON schema for structured output. riskExplanations is an object with one required key per
+ * top-risk finding ID, so constrained decoding guarantees exactly one explanation per risk: none
+ * missing, none repeated, none invented. (An array of {findingId, explanation} could not express
+ * that, and a live scan returned the wrong number of entries.)
+ */
 export function outputSchema(input: SummaryInput): Record<string, unknown> {
   const ids = input.topRisks.map((r) => r.findingId);
   return {
@@ -26,17 +31,32 @@ export function outputSchema(input: SummaryInput): Record<string, unknown> {
       headline: { type: 'string' },
       overview: { type: 'string' },
       riskExplanations: {
-        type: 'array',
-        items: {
-          type: 'object',
-          additionalProperties: false,
-          required: ['findingId', 'explanation'],
-          properties: {
-            findingId: ids.length > 0 ? { type: 'string', enum: ids } : { type: 'string' },
-            explanation: { type: 'string' },
-          },
-        },
+        type: 'object',
+        additionalProperties: false,
+        required: ids,
+        properties: Object.fromEntries(ids.map((id) => [id, { type: 'string' }])),
       },
     },
+  };
+}
+
+/**
+ * Maps the model's wire format (explanations keyed by finding ID) to the report's list, in
+ * top-risk order. Anything unexpected is passed through unchanged for the validator to reject.
+ */
+export function fromModelOutput(raw: unknown, input: SummaryInput): unknown {
+  if (typeof raw !== 'object' || raw === null) return raw;
+  const explanations: unknown = (raw as Record<string, unknown>).riskExplanations;
+  if (typeof explanations !== 'object' || explanations === null || Array.isArray(explanations)) {
+    return raw;
+  }
+  const byId = explanations as Record<string, unknown>;
+  const known = new Set(input.topRisks.map((r) => r.findingId));
+  if (Object.keys(byId).some((id) => !known.has(id))) return raw;
+  return {
+    ...raw,
+    riskExplanations: input.topRisks
+      .filter((r) => Object.hasOwn(byId, r.findingId))
+      .map((r) => ({ findingId: r.findingId, explanation: byId[r.findingId] })),
   };
 }
