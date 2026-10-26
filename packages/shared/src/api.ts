@@ -41,6 +41,7 @@ export type HealthResponse = z.infer<typeof healthResponseSchema>;
 
 export const apiErrorCodeSchema = z.enum([
   'VALIDATION_ERROR',
+  'BAD_REQUEST',
   'INVALID_REPO_URL',
   'NOT_FOUND',
   'SCAN_NOT_COMPLETED',

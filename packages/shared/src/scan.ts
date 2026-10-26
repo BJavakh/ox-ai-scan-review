@@ -67,6 +67,7 @@ export const scanErrorCodeSchema = z.enum([
   'TOO_MANY_PACKAGES',
   'VULN_SOURCE_UNAVAILABLE',
   'SCAN_TIMEOUT',
+  'SERVER_SHUTTING_DOWN',
   'INTERNAL_ERROR',
 ]);
 export type ScanErrorCode = z.infer<typeof scanErrorCodeSchema>;

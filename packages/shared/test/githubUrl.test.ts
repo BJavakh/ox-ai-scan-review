@@ -88,3 +88,14 @@ describe('parseGitHubRepoUrl', () => {
     });
   });
 });
+
+describe('parseGitHubRepoUrl: characters URL() would rewrite', () => {
+  it.each([
+    'https://github.com/victim/x\\..\\..\\evil/repo',
+    'https://github.com/o/r\\x',
+    'https://github.com/o/r\ttab',
+    'https://github.com/o/\nr',
+  ])('rejects %j', (input) => {
+    expect(parseGitHubRepoUrl(input)).toMatchObject({ ok: false, reason: 'path' });
+  });
+});

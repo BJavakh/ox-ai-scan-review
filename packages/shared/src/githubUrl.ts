@@ -76,6 +76,8 @@ export function parseGitHubRepoUrl(input: string): ParseRepoUrlResult {
   const trimmed = input.trim();
   if (trimmed === '') return fail('empty');
   if (trimmed.length > MAX_REPO_URL_LENGTH) return fail('too_long');
+  // URL() treats "\\" as "/" and drops tabs and newlines, so the path it parses could differ from what was shown.
+  if (/[\\\s]/.test(trimmed)) return fail('path');
   if (DOT_SEGMENT.test(trimmed)) return fail('path');
 
   let url: URL;

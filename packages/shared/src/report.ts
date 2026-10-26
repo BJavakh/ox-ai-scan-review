@@ -42,6 +42,8 @@ export const actionSchema = z.object({
   packageName: z.string(),
   currentVersions: z.array(z.string()).min(1),
   targetVersion: z.string().nullable(),
+  /** The target is a higher major version than an installed one: expect breaking changes. */
+  majorUpgrade: z.boolean(),
   findingIds: z.array(z.string()).min(1),
   fixableCount: z.number().int().nonnegative(),
   highestSeverity: severitySchema,
