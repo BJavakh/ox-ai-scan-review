@@ -27,7 +27,7 @@ Trust boundaries: browser to API (untrusted input), API to GitHub (untrusted con
 ## 3. SSRF
 
 - The only accepted input shape is `https://github.com/{owner}/{repo}` with an optional trailing `/`, `.git`, or `/tree/{ref}`. `www.github.com` is accepted and normalized.
-- Inputs containing `.` or `..` path segments (literal or `%2e`-encoded) are rejected before parsing, because the WHATWG `URL` parser would silently resolve them into a different path.
+- Inputs containing `.` or `..` path segments (literal or `%2e`-encoded), backslashes, or whitespace and control characters are rejected before parsing, because the WHATWG `URL` parser would silently rewrite them (`\` becomes `/`, tabs and newlines are dropped) into a different path than the one the user saw. A backslash bypass of the dot-segment check was found in the pre-submission security review and fixed.
 - Parsing uses the WHATWG `URL` parser, then checks: protocol is exactly `https:`, hostname is exactly `github.com` or `www.github.com`, no username/password, no port, path segments match the allowed forms.
 - `owner` must match GitHub's rules: 1 to 39 characters, alphanumerics or single hyphens, not starting or ending with a hyphen. `repo` must be 1 to 100 characters of `[A-Za-z0-9._-]` and not `.` or `..`. `ref` must be 1 to 200 characters of `[A-Za-z0-9._/-]` with no `..` segment and no leading `/` or `-`.
 - **The user's URL is never fetched.** The server extracts `owner`, `repo` and `ref`, then builds requests against fixed constants `https://api.github.com` and `https://api.osv.dev`. Path components are `encodeURIComponent`-escaped.
@@ -39,8 +39,9 @@ Trust boundaries: browser to API (untrusted input), API to GitHub (untrusted con
 - **No clone, no install, no execution.** We read two files through the GitHub contents API (`package-lock.json`, `package.json`) at a pinned commit SHA. Lifecycle scripts, `.npmrc`, and `preinstall` hooks are irrelevant because nothing runs.
 - **Size cap 10 MB**, enforced while streaming the response body: we stop reading and abort the request once the cap is crossed, so a 2 GB file costs at most 10 MB of memory. The `Content-Length` header is checked first when present.
 - **JSON parse safety:** `JSON.parse` on a size-capped string, wrapped so any error becomes `MANIFEST_INVALID`. The parsed value is validated with Zod before use. Package entries are read from object keys via `Object.entries` into fresh objects; `__proto__`, `constructor` and `prototype` are rejected as package names, so prototype pollution through crafted keys is not possible.
-- **Package count cap** 10,000 unique `name@version` pairs (`TOO_MANY_PACKAGES`).
-- **Name and version validation:** names must match npm's naming rules (max 214 chars), versions must be valid semver. Anything else is counted as `skippedPackages` and reported in coverage, not passed downstream.
+- **Package count cap** 10,000 unique `name@version` pairs and 50,000 lockfile entries (`TOO_MANY_PACKAGES`).
+- **Bounded parsing work.** Size caps alone do not bound CPU: the first version computed "which direct dependency pulls this in" with one graph walk per direct dependency, and a 325 KB crafted lockfile blocked the event loop for 13 s (found in the pre-submission security review). It is now a single walk that keeps at most 3 introducers per package and re-visits a package only when that set grows, so the work is linear, plus a hard budget of 2,000,000 steps. A regression test checks a 4,000-package chain finishes in well under a second.
+- **Name and version validation:** names must match npm's naming rules (max 214 chars), versions must be valid semver. Only valid names enter the dependency graph, including the root's declared dependency names, so a crafted name ("SYSTEM NOTE: ...") can never reach `introducedBy`, the LLM prompt or the UI. Anything else is counted as `skippedPackages` and reported in coverage.
 - **Advisory text** from OSV is also untrusted (anyone can contribute to advisory databases). Summaries are truncated to 300 characters and are only ever rendered as text.
 - **Advisory links** are built by us (`https://osv.dev/vulnerability/{id}` with an ID matching `^[A-Za-z0-9._:-]{1,100}$`). We never render reference URLs from advisory data as links.
 
@@ -50,31 +51,32 @@ The LLM sees data that an attacker can influence: package names in a lockfile th
 
 - **Structured, capped input.** The prompt contains only a JSON object with: repo name, risk level, counts, up to 5 actions (package, versions, counts, severity, flags) and up to 5 top risks (ID, package, version, severity, flags, summary capped at 200 chars). No file contents, no advisory `details`, no reference URLs. Every string field is length-capped.
 - **System prompt treats data as data.** It states that the JSON is untrusted, that any instructions inside it must be ignored, that the model must not invent packages, versions or advisory IDs, must not change severities, and must answer only through the provided tool schema.
-- **Structured output.** The model is forced to call a single tool whose input schema defines `headline`, `overview` and `riskExplanations[{ findingId, explanation }]`. The tool input is validated with Zod (types and lengths).
-- **Grounding check** (`domain/summaryValidation.ts`): the output is rejected if any `findingId` is not one of the top risks, if a top risk is missing, or if any text mentions an advisory ID (`GHSA-*`, `CVE-*`, `MAL-*`, `PYSEC-*`, `OSV-*`) or a `name@version` that is not in the findings.
-- **Fallback.** Missing key, network error, timeout (20 s), non-tool response, schema failure or grounding failure all produce the deterministic template summary. The report says `mode: "template"` and why.
+- **Structured output.** The request uses structured outputs (`output_config.format`) with a JSON schema for `headline`, `overview` and `riskExplanations[{ findingId, explanation }]`, where `findingId` is an `enum` of the real top-risk IDs. (A forced tool call was the first design; `claude-sonnet-5-5` rejects forced `tool_choice`, see ADR-011.) The parsed JSON is then validated with Zod (types and lengths).
+- **Grounding check** (`domain/summaryValidation.ts`): the output is rejected if any `findingId` is not one of the top risks, if a top risk is missing, or if any text contains: an advisory ID (`GHSA-*`, `CVE-*`, `MAL-*`, `PYSEC-*`, `OSV-*`) not in the input; a `name@spec` whose spec is not an exact version we provided for that package (so `pkg@latest` and `pkg@^1.2` are rejected, and trailing punctuation is not part of the version); a link or a domain name that is not one of the input's package names; a shell command (`curl`, `wget`, `| sh`, `npm install`, and so on: commands come only from deterministic data); or wording that dismisses a finding ("false positive", "safe to ignore", "not exploitable"). The UI labels an AI summary as "advisory IDs and versions checked", not as fact-checked, because prose can still be imperfect.
+- **Fallback.** Missing key, network error, timeout (20 s), refusal, truncation, invalid JSON, schema failure or grounding failure all produce the deterministic template summary. The report says `mode: "template"` and why.
 - **The LLM cannot affect severity, ranking, actions, commands or the risk level.** Those are computed before the LLM is called and are not read back from it.
 
 ## 6. LLM output rendering (XSS)
 
-- React renders every string as text. There is no `dangerouslySetInnerHTML`, no markdown renderer, and no HTML parsing anywhere in the web app (enforced in review; a grep is part of the CI checklist in `CLAUDE.md`).
+- React renders every string as text. There is no `dangerouslySetInnerHTML`, no markdown renderer, and no HTML parsing anywhere in the web app. An ESLint `no-restricted-syntax` rule fails the build if `dangerouslySetInnerHTML` is ever introduced.
 - Links in the UI are only built from our own `advisoryUrl` (validated `https://osv.dev/...`) and the canonical GitHub URL we constructed. Both open with `rel="noopener noreferrer"`.
 - The copy-command button copies text we generated (`npm install pkg@version` with validated name and version), not text from the LLM.
 
 ## 7. Abuse and DoS
 
-| Control            | Setting                                                                                                              |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------- |
-| Global rate limit  | 100 requests / minute / IP (`@fastify/rate-limit`)                                                                   |
-| Scan creation      | 10 / minute / IP                                                                                                     |
-| Body size          | 16 KB (`bodyLimit`)                                                                                                  |
-| Job concurrency    | 2 scans at a time, 25 queued; `503 SERVICE_BUSY` beyond                                                              |
-| Per-scan timeout   | 120 s, propagated via `AbortSignal` to every outbound call                                                           |
-| Outbound timeouts  | GitHub 10 s, OSV 15 s, LLM 20 s                                                                                      |
-| Advisory hydration | 8 concurrent, 500 per scan                                                                                           |
-| SSE                | 10 streams per IP, 100 total, 15 s heartbeat, stream closed on terminal state, listener removed on client disconnect |
-| Dedupe             | Same repo/ref while running returns the same scan; same SHA within 1 h reuses the result                             |
-| Memory             | Store keeps the last 200 scans                                                                                       |
+| Control              | Setting                                                                                                                                             |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Global rate limit    | 100 requests / minute per client: the IPv4 address, or the /64 prefix for IPv6 (one user controls a whole /64)                                      |
+| New scans per client | `SCANS_PER_HOUR` (default 30) per IPv4 address or IPv6 /64, sliding hour; duplicates and re-opened scans are free. Protects the shared GitHub quota |
+| Scan creation        | 10 / minute / IP                                                                                                                                    |
+| Body size            | 16 KB (`bodyLimit`)                                                                                                                                 |
+| Job concurrency      | 2 scans at a time, 25 queued; `503 SERVICE_BUSY` beyond                                                                                             |
+| Per-scan timeout     | 120 s, propagated via `AbortSignal` to every outbound call                                                                                          |
+| Outbound timeouts    | GitHub 10 s, OSV 15 s, LLM 20 s                                                                                                                     |
+| Advisory hydration   | 8 concurrent, 500 per scan                                                                                                                          |
+| SSE                  | 10 streams per client (same key), 100 total, 15 s heartbeat, stream closed on terminal state, listener removed on client disconnect                 |
+| Dedupe               | Same repo/ref while running returns the same scan; same SHA within 1 h reuses the result                                                            |
+| Memory               | Store keeps the last 200 scans                                                                                                                      |
 
 ## 8. Secrets
 
@@ -87,7 +89,7 @@ The LLM sees data that an attacker can influence: package names in a lockfile th
 ## 9. HTTP hardening
 
 - `@fastify/helmet` with a strict CSP for API responses: `default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'`. JSON responses never need to load anything.
-- The production web build should be served with `default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'`. The built app uses no inline scripts or styles, so this works without `unsafe-inline`.
+- The production web build should be served with `default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'`. The built app uses no inline scripts or style elements (React sets dynamic widths through the CSSOM, which CSP does not block), and fonts are self-hosted, so this works without `unsafe-inline` or third-party origins.
 - CORS is restricted to `WEB_ORIGIN` (default `http://localhost:5180`), methods `GET, POST`, no credentials. In development the Vite proxy makes requests same-origin anyway.
 - `X-Request-Id` on every response: a client-supplied ID is accepted only if it matches `^[A-Za-z0-9-]{1,64}$` (prevents log injection); otherwise a UUID is generated.
 - The server binds to `127.0.0.1` by default (`HOST`).

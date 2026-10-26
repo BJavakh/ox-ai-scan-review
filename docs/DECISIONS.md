@@ -16,7 +16,7 @@ Progress is strictly server-to-client, low frequency (about 10 events per scan) 
 
 ### ADR-004: In-memory store behind an interface, Postgres in production
 
-For a 3-hour single-process demo, persistence adds setup cost (Docker, migrations) without changing what reviewers can evaluate. All access goes through `ScanRepository`, so a `PostgresScanRepository` is a drop-in. Production schema and the dedupe index are described in `ARCHITECTURE.md` section 9. The in-memory store caps itself at 200 scans.
+For a 3-hour single-process demo, persistence adds setup cost (Docker, migrations) without changing what reviewers can evaluate. All access goes through `ScanRepository`, so a `PostgresScanRepository` is a drop-in. Production schema and the dedupe index are described in `ARCHITECTURE.md` section 10. The in-memory store caps itself at 200 scans.
 
 ### ADR-005: Deterministic prioritization; the LLM only explains
 
@@ -32,7 +32,7 @@ We need two files at one commit. Cloning downloads the whole history, needs disk
 
 ### ADR-008: TypeScript 6.0 and a two-week dependency cooldown
 
-TypeScript 7.0 (native compiler) was released on the day this project started; `typescript-eslint` supports `<6.1`. We use 6.0.3. More generally, every dependency is the newest version that had been public for at least two weeks, which avoids most "compromised release pulled within days" incidents. Exact pins and the committed lockfile make the result reproducible. Exception: when `npm audit` reports an advisory for a pinned version, the patched version wins even if it is newer than two weeks (this happened with `fastify` 5.12.5 to 5.12.7).
+TypeScript 7.0 (native compiler) was released on the day this project started; `typescript-eslint` supports `<6.1`. We use 6.0.3. More generally, every dependency is the newest version that had been public for at least two weeks, which avoids most "compromised release pulled within days" incidents. Exact pins and the committed lockfile make the result reproducible. Exception: when `npm audit` reports an advisory for a pinned version, the patched version wins even if it is newer than two weeks (this happened twice: `fastify` 5.12.5 to 5.12.7, and `zod` 4.6.5 to 4.6.7 when GHSA-mrhx-c7xc-m3w5 was published mid-assessment).
 
 ### ADR-009: In-flight dedupe by `owner/repo#ref` at submit time
 
@@ -69,3 +69,23 @@ Three screens (`#/`, `#/scans/:id`) do not justify a router dependency. Hash rou
 ### ADR-017: Default ports 8787 (API) and 5180 (web)
 
 The usual 3000/5173 were already in use on the development machine by other projects, and Vite's `strictPort` would otherwise silently fail or another app would answer on the same port. Uncommon defaults avoid both; both are configurable (`PORT`, `WEB_ORIGIN`, `vite.config.ts`).
+
+### ADR-018: Action priority is the worst finding; volume only breaks ties
+
+The first formula scored an action as `max + 0.25 × sum(other findings)`. On the demo data that put "upgrade axios" (25 high/moderate issues, direct) above "upgrade minimist" (one critical, production, transitive), while the headline said "1 critical in production". A security reviewer would rank the critical first. Now an action's score is its highest finding score; ties are broken by how many issues the upgrade fixes. Simpler to explain, and many small issues can never outrank one severe one.
+
+### ADR-019: Visual language and motion without animation libraries
+
+The UI follows a reference the product owner chose: warm paper and white bands, Geist Mono for headings and labels, Inter for product surfaces, square outlined buttons, soft panels, one signal orange for "live". The signature element is the progress screen drawn as a timeline: one row per pipeline step, bars sized by the real step timings from the API, and an orange "now" marker. Numbering is used only where order is real (the five pipeline steps, the report's section index). Motion is CSS only (entrance rise, live pulse, striped running bar), and `prefers-reduced-motion` disables all of it. GSAP, smooth-scroll engines and WebGL were considered and rejected: they add runtime dependencies and attack surface to a security tool for no information gain. Fonts are self-hosted from `@fontsource-variable` packages so the CSP stays `'self'`.
+
+### ADR-020: Cross-scan advisory cache validated by OSV's `modified` timestamp
+
+Advisory hydration (`GET /v1/vulns/{id}`, one request per advisory) was about 80% of a scan's time, and the same advisories recur across most npm projects. A TTL-only cache would trade freshness for speed, which is the wrong trade for a security tool. `querybatch` already returns `modified` for every match, so the cache keys on the advisory ID and reuses an entry only while `modified` is unchanged: zero staleness for changed advisories, at no extra request. The cache is bounded (5,000 entries, least recently used evicted), stores only successes and withdrawals (failures retry next scan), and returns copies. Alternative considered: caching `name@version -> IDs` too. Rejected for now because new advisories for an old version are exactly what a re-scan must find; that lookup is one batched request anyway.
+
+### ADR-021: Fail fast on unknown state, shut down gracefully on known state
+
+On `unhandledRejection` or `uncaughtException` the process logs at `fatal`, drains, and exits non-zero rather than continuing: after either, in-memory state may be inconsistent, and a supervisor restart is cheap. On SIGTERM (a deploy or scale-down), nothing is left ambiguous for clients: running and queued scans end with the retryable `SERVER_SHUTTING_DOWN` code, SSE clients receive that terminal event, and new requests get a `503` in the normal error envelope instead of Fastify's default body. A hard 10 s timeout guarantees the process exits even if a dependency hangs. With a persistent queue (BullMQ), the same hook would stop taking jobs and let them be re-queued instead of failed.
+
+### ADR-022: No worker threads for scans (measured)
+
+Profiling live scans (ARCHITECTURE section 11) showed under 60 ms of CPU per scan against about 11-20 s of network wait. Node already overlaps network waits on one thread, so worker threads would add complexity and serialization cost without making scans faster. The optimizations went where the time is: hydration parallelism and the advisory cache. The one CPU risk, a huge lockfile blocking the event loop, is documented with its fix (move the pure `resolve()` into a worker pool) and, at scale, is isolated by running scans in separate worker processes.

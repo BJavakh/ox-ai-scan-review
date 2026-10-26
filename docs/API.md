@@ -20,18 +20,19 @@ Every non-2xx response has this shape:
 
 `details` is optional. Stack traces and internal messages are never returned; 500s always say `"An unexpected error occurred."` and the request ID is the correlation handle.
 
-| HTTP | `code`                   | When                                                                              |
-| ---- | ------------------------ | --------------------------------------------------------------------------------- |
-| 400  | `VALIDATION_ERROR`       | Body or params fail schema validation (`details.issues` lists paths and messages) |
-| 400  | `INVALID_REPO_URL`       | URL is not an accepted GitHub repository URL (`details.reason`)                   |
-| 404  | `NOT_FOUND`              | Unknown scan ID or route                                                          |
-| 409  | `SCAN_NOT_COMPLETED`     | Report requested before completion (`details.status`)                             |
-| 413  | `PAYLOAD_TOO_LARGE`      | Body over 16 KB                                                                   |
-| 415  | `UNSUPPORTED_MEDIA_TYPE` | Body is not JSON                                                                  |
-| 429  | `RATE_LIMITED`           | Per-IP request rate exceeded (`Retry-After` header set)                           |
-| 429  | `TOO_MANY_STREAMS`       | Too many open SSE streams for this IP or globally                                 |
-| 503  | `SERVICE_BUSY`           | Scan queue is full                                                                |
-| 500  | `INTERNAL_ERROR`         | Anything unexpected                                                               |
+| HTTP | `code`                   | When                                                                                                                                   |
+| ---- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| 400  | `VALIDATION_ERROR`       | Body or params fail schema validation (`details.issues` lists paths and messages)                                                      |
+| 400  | `INVALID_REPO_URL`       | URL is not an accepted GitHub repository URL (`details.reason`)                                                                        |
+| 404  | `NOT_FOUND`              | Unknown scan ID or route                                                                                                               |
+| 409  | `SCAN_NOT_COMPLETED`     | Report requested before completion (`details.status`)                                                                                  |
+| 4xx  | `BAD_REQUEST`            | Any other client error raised by the framework (for example 405); the original status is kept                                          |
+| 413  | `PAYLOAD_TOO_LARGE`      | Body over 16 KB                                                                                                                        |
+| 415  | `UNSUPPORTED_MEDIA_TYPE` | Body is not JSON                                                                                                                       |
+| 429  | `RATE_LIMITED`           | Per-client request rate exceeded (`Retry-After` header set), or the client already started `SCANS_PER_HOUR` new scans in the last hour |
+| 429  | `TOO_MANY_STREAMS`       | Too many open SSE streams for this IP or globally                                                                                      |
+| 503  | `SERVICE_BUSY`           | Scan queue is full, or the server is shutting down                                                                                     |
+| 500  | `INTERNAL_ERROR`         | Anything unexpected                                                                                                                    |
 
 ## `POST /api/scans`
 
@@ -146,7 +147,7 @@ Current state of a scan. Use this for polling (the web client polls every 1.5 s 
 }
 ```
 
-Scan error codes: `REPO_NOT_FOUND`, `REPO_EMPTY`, `REF_NOT_FOUND`, `GITHUB_RATE_LIMITED`, `GITHUB_UNAVAILABLE`, `NO_SUPPORTED_MANIFEST`, `MANIFEST_TOO_LARGE`, `MANIFEST_INVALID`, `TOO_MANY_PACKAGES`, `VULN_SOURCE_UNAVAILABLE`, `SCAN_TIMEOUT`, `INTERNAL_ERROR`.
+Scan error codes: `REPO_NOT_FOUND`, `REPO_EMPTY`, `REF_NOT_FOUND`, `GITHUB_RATE_LIMITED`, `GITHUB_UNAVAILABLE`, `NO_SUPPORTED_MANIFEST`, `MANIFEST_TOO_LARGE`, `MANIFEST_INVALID`, `TOO_MANY_PACKAGES`, `VULN_SOURCE_UNAVAILABLE`, `SCAN_TIMEOUT`, `SERVER_SHUTTING_DOWN` (retryable; the server stopped while the scan was queued or running), `INTERNAL_ERROR`.
 
 Errors: `400 VALIDATION_ERROR` (ID is not a UUID), `404 NOT_FOUND`.
 
@@ -188,7 +189,7 @@ data: {"status":"checking_vulnerabilities","progress":33}
   "riskLevel": "high",
   "summary": {
     "mode": "template",
-    "headline": "High risk: 2 upgrades fix 7 of 8 known vulnerabilities, including 1 high in production.",
+    "headline": "High risk: 8 known vulnerabilities, 3 high-severity issues. Start by upgrading lodash to 4.18.0.",
     "overview": "We checked 812 npm packages from package-lock.json at commit 1f0d5b3...",
     "fallbackReason": "ANTHROPIC_API_KEY is not configured."
   },
@@ -197,16 +198,17 @@ data: {"status":"checking_vulnerabilities","progress":33}
       "id": "lodash",
       "packageName": "lodash",
       "currentVersions": ["4.17.15"],
-      "targetVersion": "4.17.21",
+      "targetVersion": "4.18.0",
+      "majorUpgrade": false,
       "findingIds": ["GHSA-35jh-r3h4-6jhm", "GHSA-p6mc-m468-83gw", "..."],
       "fixableCount": 6,
       "highestSeverity": "HIGH",
       "direct": true,
       "dev": false,
       "introducedBy": [],
-      "score": 9.84,
-      "command": "npm install lodash@4.17.21",
-      "rationale": "Upgrade lodash 4.17.15 to 4.17.21: fixes 6 issues (highest: high) in a direct production dependency."
+      "score": 7,
+      "command": "npm install lodash@4.18.0",
+      "rationale": "Upgrade lodash 4.17.15 to 4.18.0: fixes 6 issues (highest: high) in a direct production dependency."
     }
   ],
   "topRisks": [
