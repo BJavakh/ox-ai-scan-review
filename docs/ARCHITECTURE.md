@@ -369,7 +369,7 @@ What this says, and what was done about it:
 | Origin      | One: `/api/*` is the API, everything else is the web build (`WEB_DIST_DIR`), with separate CSPs                                                            |
 | Health      | `HEALTHCHECK` and Render's health check both use `GET /api/health`                                                                                         |
 | Local       | `docker compose up --build` (mock mode by default, read-only filesystem, no capabilities)                                                                  |
-| Public demo | Render Blueprint (`render.yaml`): live mode, `TRUST_PROXY_HOPS=2`, `SCANS_PER_HOUR=10`, secrets entered in the dashboard                                   |
+| Public demo | Render Blueprint (`render.yaml`): live mode, `TRUST_PROXY_HOPS=3`, `SCANS_PER_HOUR=10`, secrets entered in the dashboard                                   |
 | CI          | Builds the image, checks it runs as non-root and turns healthy, checks both CSPs, and checks that `docker stop` exits 0 (graceful shutdown)                |
 
 At scale the same image runs as API replicas behind a load balancer, with the web build moved to a CDN and the in-process pieces replaced as in section 10.

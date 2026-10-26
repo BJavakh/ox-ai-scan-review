@@ -11,11 +11,11 @@ services:
     envVars:
       - key: SCANNER_MODE
         value: live
-      # Two proxies append to X-Forwarded-For on Render: the edge (adds the client IP) and an
-      # internal load balancer (adds a 10.x address). Verified from request logs after deploy:
-      # with 1 hop every client looked like a rotating 10.x address.
+      # Three proxies append to X-Forwarded-For on Render: Cloudflare (adds the client IP), Render's
+      # edge (adds a Cloudflare IP) and an internal load balancer (adds a 10.x address). Verified
+      # from request logs: 1 hop gave 10.x addresses, 2 hops gave Cloudflare addresses.
       - key: TRUST_PROXY_HOPS
-        value: '2'
+        value: '3'
       # A public demo: keep each visitor well inside the shared GitHub quota.
       - key: SCANS_PER_HOUR
         value: '10'
