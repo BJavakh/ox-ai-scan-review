@@ -148,7 +148,7 @@ The service takes an untrusted URL, reads untrusted content and sends some of it
 ## Deployment
 
 - **Image:** a multi-stage `Dockerfile` (Node 22 Alpine pinned by digest, production dependencies only, non-root, read-only filesystem friendly, `HEALTHCHECK`). The API serves the built web app, so the whole product is one container and one URL (ADR-023).
-- **Render:** `render.yaml` is a Blueprint for one Docker web service: live mode, health check on `/api/health`, one trusted proxy hop for correct client IPs, and a lower per-client scan quota. `GITHUB_TOKEN` and `ANTHROPIC_API_KEY` are entered in the Render dashboard, never committed. Deploys run on every push to `main`.
+- **Render:** `render.yaml` is a Blueprint for one Docker web service: live mode, health check on `/api/health`, two trusted proxy hops (edge and internal load balancer, verified from logs) for correct client IPs, and a lower per-client scan quota. `GITHUB_TOKEN` and `ANTHROPIC_API_KEY` are entered in the Render dashboard, never committed. Deploys run on every push to `main`.
 - **CI** builds the image and checks it end to end: healthy, non-root, both CSPs, and a clean exit on `docker stop`.
 - At scale: API replicas from the same image behind a load balancer, the web build on a CDN, and Postgres, BullMQ and Redis in place of the in-process store, queue and cache ([`ARCHITECTURE.md` sections 10 and 12](docs/ARCHITECTURE.md#12-deployment)).
 

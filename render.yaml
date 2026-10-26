@@ -11,9 +11,11 @@ services:
     envVars:
       - key: SCANNER_MODE
         value: live
-      # Render's load balancer is the one proxy in front of the app; it appends the client IP.
+      # Two proxies append to X-Forwarded-For on Render: the edge (adds the client IP) and an
+      # internal load balancer (adds a 10.x address). Verified from request logs after deploy:
+      # with 1 hop every client looked like a rotating 10.x address.
       - key: TRUST_PROXY_HOPS
-        value: '1'
+        value: '2'
       # A public demo: keep each visitor well inside the shared GitHub quota.
       - key: SCANS_PER_HOUR
         value: '10'
