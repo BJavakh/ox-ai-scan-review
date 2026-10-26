@@ -11,8 +11,6 @@ export const SEVERITY_WEIGHTS: Readonly<Record<Severity, number>> = {
 export const SCOPE_FACTOR = { production: 1, development: 0.3 } as const;
 export const RELATIONSHIP_FACTOR = { direct: 1, transitive: 0.75 } as const;
 export const FIX_FACTOR = { available: 1, none: 0.8 } as const;
-/** Weight of the non-maximal findings when scoring an action. */
-export const ACTION_TAIL_WEIGHT = 0.25;
 
 export interface ScoreInput {
   severity: Severity;
@@ -34,12 +32,12 @@ export function scoreFinding(input: ScoreInput): number {
   );
 }
 
-/** max + 0.25 x sum(rest): one critical dominates, many smaller issues still lift the action. */
+/**
+ * An action is as urgent as its most dangerous finding. Volume never outranks
+ * severity: the number of issues fixed only breaks ties (see compareActions).
+ */
 export function scoreAction(findingScores: readonly number[]): number {
-  if (findingScores.length === 0) return 0;
-  const sorted = [...findingScores].sort((a, b) => b - a);
-  const [max = 0, ...rest] = sorted;
-  return round2(max + ACTION_TAIL_WEIGHT * rest.reduce((sum, s) => sum + s, 0));
+  return findingScores.length === 0 ? 0 : Math.max(...findingScores);
 }
 
 export function severityRank(severity: Severity): number {

@@ -5,7 +5,7 @@ export const OSV_API_ORIGIN = 'https://api.osv.dev';
 export const querybatchResponseSchema = z.object({
   results: z.array(
     z.object({
-      vulns: z.array(z.object({ id: z.string() })).optional(),
+      vulns: z.array(z.object({ id: z.string(), modified: z.string().optional() })).optional(),
       next_page_token: z.string().optional(),
     }),
   ),

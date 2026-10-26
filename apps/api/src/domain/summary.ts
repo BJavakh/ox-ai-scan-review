@@ -22,6 +22,7 @@ export interface SummaryInput {
     fixable: number;
     actions: number;
     devOnlyFindings: number;
+    criticalInProduction: number;
     bySeverity: SeverityCounts;
   };
   actions: SummaryActionInput[];
@@ -32,6 +33,7 @@ export interface SummaryActionInput {
   package: string;
   currentVersions: string[];
   targetVersion: string | null;
+  majorUpgrade: boolean;
   issues: number;
   fixes: number;
   highestSeverity: Severity;
@@ -99,12 +101,15 @@ export function buildSummaryInput(
       fixable: analysis.stats.fixableFindings,
       actions: analysis.stats.actionCount,
       devOnlyFindings: analysis.findings.filter((f) => f.dev).length,
+      criticalInProduction: analysis.findings.filter((f) => !f.dev && f.severity === 'CRITICAL')
+        .length,
       bySeverity: analysis.stats.bySeverity,
     },
     actions: analysis.actions.slice(0, SUMMARY_LIMITS.actions).map((a) => ({
       package: cap(a.packageName),
       currentVersions: a.currentVersions.slice(0, 3).map(cap),
       targetVersion: a.targetVersion,
+      majorUpgrade: a.majorUpgrade,
       issues: a.findingIds.length,
       fixes: a.fixableCount,
       highestSeverity: a.highestSeverity,

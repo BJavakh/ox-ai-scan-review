@@ -52,34 +52,54 @@ function childNames(entry: LockEntry): string[] {
     ...stringRecordKeys(entry.dependencies),
     ...stringRecordKeys(entry.optionalDependencies),
     ...stringRecordKeys(entry.peerDependencies),
+  ].filter(isValidPackageName);
+}
+
+function sourceDependencyNames(entry: LockEntry): string[] {
+  return [
+    ...childNames(entry),
+    ...stringRecordKeys(entry.devDependencies).filter(isValidPackageName),
   ];
 }
 
-/** For every installed path, which direct dependencies reach it. */
+/** Upper bound on graph-walk steps: linear in a valid lockfile, so this only stops hostile input. */
+const MAX_GRAPH_STEPS = 2_000_000;
+
+/**
+ * Which direct dependencies pull in each installed path. One multi-source
+ * breadth-first walk; each path keeps at most MAX_INTRODUCED_BY names and is
+ * only re-visited when its set grows, so the work is linear in the graph size
+ * (a per-root walk was quadratic and could block the event loop).
+ */
 function computeIntroducers(
   entries: ReadonlyMap<string, LockEntry>,
-  directNames: readonly string[],
+  directPaths: ReadonlyMap<string, string>,
 ): Map<string, Set<string>> {
   const roots = new Map<string, Set<string>>();
-  for (const direct of directNames) {
-    const start = `${NODE_MODULES}${direct}`;
-    if (!entries.has(start)) continue;
-    const queue = [start];
-    const visited = new Set(queue);
-    while (queue.length > 0) {
-      const path = queue.shift() as string;
-      const set = roots.get(path) ?? new Set<string>();
-      set.add(direct);
-      roots.set(path, set);
-      const entry = entries.get(path);
-      if (!entry) continue;
-      for (const child of childNames(entry)) {
-        const resolved = resolveChild(entries, path, child);
-        if (resolved !== null && !visited.has(resolved)) {
-          visited.add(resolved);
-          queue.push(resolved);
-        }
-      }
+  const queue: string[] = [];
+  let steps = 0;
+
+  const add = (path: string, name: string): void => {
+    const set = roots.get(path) ?? new Set<string>();
+    if (set.has(name) || set.size >= MAX_INTRODUCED_BY) return;
+    set.add(name);
+    roots.set(path, set);
+    queue.push(path);
+  };
+
+  for (const [path, name] of directPaths) add(path, name);
+  for (let head = 0; head < queue.length; head++) {
+    const path = queue[head] as string;
+    const entry = entries.get(path);
+    const names = roots.get(path);
+    if (!entry || !names) continue;
+    for (const child of childNames(entry)) {
+      steps += 1;
+      if (steps > MAX_GRAPH_STEPS)
+        throw new ScanFailure('TOO_MANY_PACKAGES', 'dependency graph too large');
+      const resolved = resolveChild(entries, path, child);
+      if (resolved === null) continue;
+      for (const name of names) add(resolved, name);
     }
   }
   return roots;
@@ -90,23 +110,28 @@ export function parseLockfile(raw: unknown, lockfileVersion: number): ResolvedDe
   if (rawEntries.length > MAX_LOCK_ENTRIES) throw new ScanFailure('TOO_MANY_PACKAGES');
 
   const entries = new Map<string, LockEntry>();
-  let root: LockEntry = {};
+  /** The root ("") and npm workspace folders: the places dependencies are declared. */
+  const sources = new Map<string, LockEntry>();
   for (const [path, value] of rawEntries) {
     const parsed = entrySchema.safeParse(value);
     if (!parsed.success) continue;
-    if (path === '') root = parsed.data;
-    else if (path.startsWith(NODE_MODULES) || path.includes(`/${NODE_MODULES}`))
-      entries.set(path, parsed.data);
+    if (path.startsWith(NODE_MODULES) || path.includes(`/${NODE_MODULES}`)) {
+      // Only paths whose package segment is a valid npm name enter the graph.
+      if (isValidPackageName(nameFromPath(path))) entries.set(path, parsed.data);
+    } else if (path === '' || parsed.data.link !== true) {
+      sources.set(path, parsed.data);
+    }
   }
 
-  const prodDirect = [
-    ...stringRecordKeys(root.dependencies),
-    ...stringRecordKeys(root.optionalDependencies),
-    ...stringRecordKeys(root.peerDependencies),
-  ];
-  const directNames = [...new Set([...prodDirect, ...stringRecordKeys(root.devDependencies)])];
-  const directSet = new Set(directNames);
-  const introducers = computeIntroducers(entries, directNames);
+  // A direct dependency is whatever a source's declared name resolves to, top-level or nested.
+  const directPaths = new Map<string, string>();
+  for (const [sourcePath, source] of sources) {
+    for (const name of sourceDependencyNames(source)) {
+      const resolved = resolveChild(entries, sourcePath, name);
+      if (resolved !== null && !directPaths.has(resolved)) directPaths.set(resolved, name);
+    }
+  }
+  const introducers = computeIntroducers(entries, directPaths);
 
   const byKey = new Map<string, Dependency>();
   let skipped = 0;
@@ -118,8 +143,7 @@ export function parseLockfile(raw: unknown, lockfileVersion: number): ResolvedDe
       skipped += 1;
       continue;
     }
-    const isTopLevel = path === `${NODE_MODULES}${nameFromPath(path)}`;
-    const direct = isTopLevel && directSet.has(nameFromPath(path));
+    const direct = directPaths.has(path);
     const dev = entry.dev === true;
     const via = [...(introducers.get(path) ?? [])];
 

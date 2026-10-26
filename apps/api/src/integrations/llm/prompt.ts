@@ -11,7 +11,9 @@ Rules:
 - overview: 2 to 4 sentences, at most ${String(SUMMARY_LIMITS.overview)} characters: what was checked, what matters most, and what to do first. If accuracy is "approximate", say that results are estimated.
 - riskExplanations: exactly one entry for each item in topRisks, using its findingId, in the same order. Each at most ${String(SUMMARY_LIMITS.explanation)} characters, explaining in plain language why it matters for this project (production or development, direct or transitive, which dependency pulls it in) and how to fix it.
 - When you mention a package with a version, write it as name@version using only versions given in the JSON.
-- Plain text only. No markdown, no links, no HTML.`;
+- Plain text only. No markdown, no links, no domain names, no HTML.
+- Do not write shell commands; the report shows the exact command next to each upgrade.
+- Never describe an issue as safe to ignore, a false positive, or not exploitable.`;
 
 /** JSON schema for structured output. findingId is constrained to the real top-risk IDs. */
 export function outputSchema(input: SummaryInput): Record<string, unknown> {

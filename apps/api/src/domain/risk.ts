@@ -17,16 +17,22 @@ export function deriveRiskLevel(findings: readonly Finding[]): RiskLevel {
   return 'low';
 }
 
-/** Highest-scored finding per package, top N. Input must already be sorted by score. */
+/**
+ * Highest-scored finding per package, top N, each advisory at most once (one
+ * advisory can affect two packages, e.g. lodash and lodash-es). Input must
+ * already be sorted by score.
+ */
 export function selectTopRisks(
   sortedFindings: readonly Finding[],
   limit = MAX_TOP_RISKS,
 ): Finding[] {
-  const seen = new Set<string>();
+  const seenPackages = new Set<string>();
+  const seenAdvisories = new Set<string>();
   const top: Finding[] = [];
   for (const finding of sortedFindings) {
-    if (seen.has(finding.packageName)) continue;
-    seen.add(finding.packageName);
+    if (seenPackages.has(finding.packageName) || seenAdvisories.has(finding.id)) continue;
+    seenPackages.add(finding.packageName);
+    seenAdvisories.add(finding.id);
     top.push(finding);
     if (top.length === limit) break;
   }

@@ -5,15 +5,26 @@ export type SummaryValidationResult =
 
 const ADVISORY_ID =
   /\b(?:GHSA(?:-[0-9a-z]{4}){3}|CVE-\d{4}-\d{4,}|MAL-\d{4}-\d+|PYSEC-\d{4}-\d+|OSV-\d{4}-\d+)\b/gi;
-const PACKAGE_AT_VERSION =
-  /(?<![\w@/.-])(@?[a-z0-9][\w.-]*(?:\/[\w.-]+)?)@v?(\d+\.\d+\.\d+[\w.+-]*)/gi;
+/** `name@spec`; the spec is checked separately so trailing punctuation never becomes part of it. */
+const PACKAGE_SPEC = /(?<![\w@/.-])(@?[a-z0-9][\w.-]*(?:\/[\w.-]+)?)@([^\s,;:)\]'"`]+)/gi;
+const EXACT_VERSION = /^v?\d+\.\d+\.\d+(?:-[0-9a-z.-]*[0-9a-z])?(?:\+[0-9a-z.-]*[0-9a-z])?$/i;
 const URL_LIKE = /\b(?:https?:\/\/|www\.)/i;
+/** Commands come only from deterministic data; prose must never contain one. */
+const SHELL_COMMAND =
+  /\b(?:curl|wget|bash|powershell|iex|chmod|sudo|eval)\b|\|\s*(?:sh|bash)\b|\b(?:npm|npx|yarn|pnpm)\s+(?:i|install|add|exec|run|update|uninstall)\b/i;
+const DOMAIN_LIKE =
+  /\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|net|org|io|dev|sh|xyz|ru|cn|app|co|me|info|biz|link|site|top|cc)\b/gi;
+/** Severity is decided by data; prose must not argue an issue away. */
+const DISMISSIVE =
+  /\b(?:safe to ignore|can (?:safely )?be ignored|false positives?|not (?:actually )?exploitable|no action (?:is )?(?:needed|required)|not a real (?:issue|risk))\b/i;
 
 function knownFacts(input: SummaryInput) {
   const ids = new Set<string>();
+  const packages = new Set<string>();
   const versions = new Map<string, Set<string>>();
   const addVersion = (name: string, version: string | null) => {
     if (version === null) return;
+    packages.add(name.toLowerCase());
     const set = versions.get(name.toLowerCase()) ?? new Set<string>();
     set.add(version.toLowerCase());
     versions.set(name.toLowerCase(), set);
@@ -28,7 +39,7 @@ function knownFacts(input: SummaryInput) {
     for (const v of action.currentVersions) addVersion(action.package, v);
     addVersion(action.package, action.targetVersion);
   }
-  return { ids, versions };
+  return { ids, versions, packages };
 }
 
 /**
@@ -50,7 +61,7 @@ export function validateSummary(raw: unknown, input: SummaryInput): SummaryValid
     return { ok: false, reason: 'explanation references an unknown finding' };
   }
 
-  const { ids, versions } = knownFacts(input);
+  const { ids, versions, packages } = knownFacts(input);
   const texts = [
     content.headline,
     content.overview,
@@ -63,9 +74,17 @@ export function validateSummary(raw: unknown, input: SummaryInput): SummaryValid
         return { ok: false, reason: `output mentions unknown advisory ${match[0]}` };
       }
     }
-    for (const match of text.matchAll(PACKAGE_AT_VERSION)) {
-      const [, name = '', version = ''] = match;
-      if (!versions.get(name.toLowerCase())?.has(version.toLowerCase())) {
+    if (SHELL_COMMAND.test(text)) return { ok: false, reason: 'output contains a shell command' };
+    if (DISMISSIVE.test(text)) return { ok: false, reason: 'output dismisses a finding' };
+    for (const match of text.matchAll(DOMAIN_LIKE)) {
+      if (!packages.has(match[0].toLowerCase())) {
+        return { ok: false, reason: `output mentions a domain ${match[0]}` };
+      }
+    }
+    for (const match of text.matchAll(PACKAGE_SPEC)) {
+      const name = (match[1] ?? '').toLowerCase();
+      const spec = (match[2] ?? '').replace(/[.!?]+$/, '').toLowerCase();
+      if (!EXACT_VERSION.test(spec) || !versions.get(name)?.has(spec.replace(/^v/, ''))) {
         return { ok: false, reason: `output mentions unknown package version ${match[0]}` };
       }
     }

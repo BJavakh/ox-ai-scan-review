@@ -54,6 +54,10 @@ export const SCAN_ERRORS: Readonly<Record<ScanErrorCode, ErrorInfo>> = {
     message: 'The scan took too long and was stopped. Try again shortly.',
     retryable: true,
   },
+  SERVER_SHUTTING_DOWN: {
+    message: 'The server restarted while this scan was running. Start the scan again.',
+    retryable: true,
+  },
   INTERNAL_ERROR: {
     message: 'An unexpected error occurred while scanning.',
     retryable: true,

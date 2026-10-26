@@ -116,7 +116,7 @@ describe('groupIntoActions', () => {
       findingIds: ['A', 'B', 'C'],
       fixableCount: 3,
       highestSeverity: 'HIGH',
-      score: 8.38,
+      score: 7,
       command: 'npm install lodash@4.17.21',
     });
     expect(lodash?.rationale).toContain('Upgrade lodash 4.17.15 to 4.17.21: fixes 3 issues');
@@ -214,5 +214,111 @@ describe('analyze', () => {
     expect(result.topRisks.map((f) => f.id)).toEqual(['G1', 'G3']);
     expect(result.stats).toEqual(computeStats(result.findings, result.actions));
     expect(result.stats).toMatchObject({ totalFindings: 3, actionCount: 2, fixableFindings: 2 });
+  });
+});
+
+describe('major upgrades', () => {
+  it('flags targets in a higher major version than an installed version', () => {
+    const [major] = groupIntoActions([
+      finding({ id: 'A', packageName: 'tar', installedVersion: '4.4.8', fixedVersion: '4.4.18' }),
+      finding({ id: 'B', packageName: 'tar', installedVersion: '4.4.8', fixedVersion: '7.5.2' }),
+    ]);
+    expect(major).toMatchObject({ targetVersion: '7.5.2', majorUpgrade: true });
+    expect(major?.rationale).toContain('major version upgrade');
+
+    const [minor] = groupIntoActions([
+      finding({ id: 'A', installedVersion: '1.0.0', fixedVersion: '1.9.0' }),
+    ]);
+    expect(minor?.majorUpgrade).toBe(false);
+  });
+});
+
+describe('action ordering', () => {
+  it('ranks by the worst finding, then by how many issues an upgrade fixes', () => {
+    const actions = groupIntoActions([
+      // many high-severity issues in a direct dependency
+      ...Array.from({ length: 25 }, (_, i) =>
+        finding({ id: `AX-${String(i)}`, packageName: 'axios', score: 7 }),
+      ),
+      // one critical in a transitive production dependency
+      finding({
+        id: 'MM-1',
+        packageName: 'minimist',
+        severity: 'CRITICAL',
+        direct: false,
+        score: 7.5,
+      }),
+      // ties on score: more fixable issues first
+      finding({ id: 'LO-1', packageName: 'lodash', score: 7 }),
+    ]);
+    expect(actions.map((a) => a.packageName)).toEqual(['minimist', 'axios', 'lodash']);
+  });
+});
+
+describe('review fixes', () => {
+  it('keeps who pulls in a nested copy when the package is also a direct dependency', () => {
+    const [action] = groupIntoActions([
+      finding({ id: 'A', packageName: 'qs', installedVersion: '6.11.0', direct: true }),
+      finding({
+        id: 'A',
+        packageName: 'qs',
+        installedVersion: '6.5.2',
+        direct: false,
+        introducedBy: ['request'],
+      }),
+    ]);
+    expect(action).toMatchObject({ direct: true, introducedBy: ['request'] });
+    expect(action?.rationale).toContain('A nested copy pulled in by request');
+  });
+
+  it('never selects the same advisory twice as a top risk', () => {
+    const top = selectTopRisks([
+      finding({ id: 'GHSA-shared', packageName: 'lodash', score: 7 }),
+      finding({ id: 'GHSA-shared', packageName: 'lodash-es', score: 7 }),
+      finding({ id: 'GHSA-other', packageName: 'lodash-es', score: 4 }),
+    ]);
+    expect(top.map((f) => `${f.packageName}#${f.id}`)).toEqual([
+      'lodash#GHSA-shared',
+      'lodash-es#GHSA-other',
+    ]);
+  });
+});
+
+describe('upgrade commands', () => {
+  it('pins transitive major upgrades with overrides, because npm update cannot cross a major', () => {
+    const [major] = groupIntoActions([
+      finding({
+        id: 'A',
+        packageName: 'tar',
+        installedVersion: '2.2.1',
+        fixedVersion: '7.5.21',
+        direct: false,
+        introducedBy: ['forever'],
+      }),
+    ]);
+    expect(major?.command).toBe('npm pkg set "overrides[tar]=7.5.21" && npm install');
+    expect(major?.rationale).toContain('npm update cannot cross a major version');
+
+    const [minor] = groupIntoActions([
+      finding({
+        id: 'B',
+        packageName: 'qs',
+        installedVersion: '6.7.0',
+        fixedVersion: '6.7.3',
+        direct: false,
+      }),
+    ]);
+    expect(minor?.command).toBe('npm update qs');
+
+    const [scoped] = groupIntoActions([
+      finding({
+        id: 'C',
+        packageName: '@babel/traverse',
+        installedVersion: '6.26.0',
+        fixedVersion: '7.23.2',
+        direct: false,
+      }),
+    ]);
+    expect(scoped?.command).toBe('npm pkg set "overrides[@babel/traverse]=7.23.2" && npm install');
   });
 });

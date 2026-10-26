@@ -20,9 +20,11 @@ export const envSchema = z.object({
   GITHUB_TOKEN: optionalSecret,
   ANTHROPIC_API_KEY: optionalSecret,
   ANTHROPIC_MODEL: z.string().trim().min(1).default('claude-sonnet-5-5'),
-  SCAN_TIMEOUT_MS: intInRange(5_000, 600_000, 120_000),
+  SCAN_TIMEOUT_MS: intInRange(1_000, 600_000, 120_000),
   LLM_TIMEOUT_MS: intInRange(1_000, 120_000, 20_000),
   SCAN_CONCURRENCY: intInRange(1, 16, 2),
+  /** New scans per client (IPv4 address or IPv6 /64) per hour. */
+  SCANS_PER_HOUR: intInRange(1, 10_000, 30),
 });
 
 export type Env = z.infer<typeof envSchema>;

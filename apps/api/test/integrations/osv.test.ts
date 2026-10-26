@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { ScanFailure } from '../../src/domain/errors.js';
 import { createFixtureFetch } from '../../src/integrations/fixtures/fixtureFetch.js';
+import { AdvisoryCache } from '../../src/integrations/osv/AdvisoryCache.js';
 import { OsvVulnerabilitySource } from '../../src/integrations/osv/OsvVulnerabilitySource.js';
 import type { FetchFn } from '../../src/lib/http.js';
-import { dependency } from '../helpers/builders.js';
+import { advisory, dependency } from '../helpers/builders.js';
 import { fakeFetch, signal, status } from '../helpers/fetch.js';
 
 const fixtures = createFixtureFetch();
@@ -83,5 +84,110 @@ describe('OsvVulnerabilitySource', () => {
     const result = await source(fetchFn).lookup([], signal());
     expect(result.matches.size).toBe(0);
     expect(fetchFn.calls).toHaveLength(0);
+  });
+});
+
+describe('advisory cache across scans', () => {
+  const hydrations = (fetchFn: { calls: URL[] }) =>
+    fetchFn.calls.filter((u) => u.pathname.startsWith('/v1/vulns/')).length;
+
+  /** Fixture OSV, but querybatch reports `modified` from the given function. */
+  function osvWithModified(modified: (id: string) => string) {
+    return fakeFetch(async (url, init) => {
+      const res = await fixtures(url, init);
+      if (url.pathname !== '/v1/querybatch') return res;
+      const body = (await res.json()) as { results: { vulns?: { id: string }[] }[] };
+      return Response.json({
+        results: body.results.map((r) => ({
+          ...r,
+          ...(r.vulns
+            ? { vulns: r.vulns.map((v) => ({ id: v.id, modified: modified(v.id) })) }
+            : {}),
+        })),
+      });
+    });
+  }
+
+  it('reuses unchanged advisories instead of fetching them again', async () => {
+    const cache = new AdvisoryCache();
+    const fetchFn = osvWithModified(() => '2026-01-01T00:00:00Z');
+    const osv = new OsvVulnerabilitySource({ fetchFn, backoffMs: 0, cache });
+
+    const first = await osv.lookup(deps, signal());
+    expect(hydrations(fetchFn)).toBe(7);
+    const second = await osv.lookup(deps, signal());
+    expect(hydrations(fetchFn)).toBe(7); // only the querybatch call was repeated
+    expect(second.advisories).toEqual(first.advisories);
+    expect(cache.stats()).toMatchObject({ size: 7, hits: 7 });
+  });
+
+  it('fetches an advisory again when OSV reports it as modified', async () => {
+    const cache = new AdvisoryCache();
+    const version = { lodash: '2026-01-01T00:00:00Z' };
+    const fetchFn = osvWithModified((id) =>
+      id === 'GHSA-p6mc-m468-83gw' ? version.lodash : '2026-01-01T00:00:00Z',
+    );
+    const osv = new OsvVulnerabilitySource({ fetchFn, backoffMs: 0, cache });
+    await osv.lookup(deps, signal());
+    version.lodash = '2026-03-01T00:00:00Z';
+    await osv.lookup(deps, signal());
+    const refetched = fetchFn.calls.filter((u) => u.pathname.endsWith('GHSA-p6mc-m468-83gw'));
+    expect(refetched).toHaveLength(2);
+    expect(hydrations(fetchFn)).toBe(8);
+  });
+
+  it('does not cache failures, so the next scan retries them', async () => {
+    const cache = new AdvisoryCache();
+    const state = { failing: true };
+    const fetchFn = fakeFetch((url, init) =>
+      state.failing && url.pathname.endsWith('GHSA-p6mc-m468-83gw')
+        ? status(500)
+        : fixtures(url, init),
+    );
+    const osv = new OsvVulnerabilitySource({ fetchFn, backoffMs: 0, retries: 0, cache });
+    expect((await osv.lookup(deps, signal())).advisories.has('GHSA-p6mc-m468-83gw')).toBe(false);
+    state.failing = false;
+    expect((await osv.lookup(deps, signal())).advisories.has('GHSA-p6mc-m468-83gw')).toBe(true);
+  });
+});
+
+describe('AdvisoryCache', () => {
+  const value = (id: string) => ({ ok: true as const, advisory: advisory({ id }) });
+
+  it('matches on the modified timestamp when OSV provides one', () => {
+    const cache = new AdvisoryCache();
+    cache.set('A', 'v1', value('A'));
+    expect(cache.get('A', 'v1')).toEqual(value('A'));
+    expect(cache.get('A', 'v2')).toBeUndefined();
+  });
+
+  it('falls back to a TTL when the timestamp is unknown', () => {
+    const clock = { now: 0 };
+    const cache = new AdvisoryCache(10, 1_000, () => clock.now);
+    cache.set('A', null, value('A'));
+    clock.now = 999;
+    expect(cache.get('A', null)).toBeDefined();
+    clock.now = 1_000;
+    expect(cache.get('A', null)).toBeUndefined();
+  });
+
+  it('evicts the least recently used entry when full', () => {
+    const cache = new AdvisoryCache(2);
+    cache.set('A', 'v', value('A'));
+    cache.set('B', 'v', value('B'));
+    cache.get('A', 'v'); // A is now the most recently used
+    cache.set('C', 'v', value('C'));
+    expect(cache.get('B', 'v')).toBeUndefined();
+    expect(cache.get('A', 'v')).toBeDefined();
+    expect(cache.get('C', 'v')).toBeDefined();
+  });
+
+  it('returns copies, so one scan cannot change what another reads', () => {
+    const cache = new AdvisoryCache();
+    cache.set('A', 'v', value('A'));
+    const first = cache.get('A', 'v');
+    if (first?.ok) first.advisory.summary = 'changed';
+    const second = cache.get('A', 'v');
+    expect(second?.ok && second.advisory.summary).not.toBe('changed');
   });
 });

@@ -34,14 +34,14 @@ describe('scoreFinding (worked examples from docs/ARCHITECTURE.md 5.2)', () => {
 });
 
 describe('scoreAction', () => {
-  it('is the max plus a quarter of the rest', () => {
-    expect(scoreAction([7, 4, 4])).toBe(9);
+  it('is the score of the most dangerous finding', () => {
+    expect(scoreAction([7, 4, 4])).toBe(7);
     expect(scoreAction([10])).toBe(10);
     expect(scoreAction([])).toBe(0);
   });
 
-  it('lets one critical outrank many moderates', () => {
-    expect(scoreAction([10])).toBeGreaterThan(scoreAction([4, 4, 4, 4]));
+  it('never lets many smaller issues outrank one more severe issue', () => {
+    expect(scoreAction([7.5])).toBeGreaterThan(scoreAction([7, ...Array<number>(24).fill(4)]));
   });
 });
 
