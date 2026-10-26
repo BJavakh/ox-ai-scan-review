@@ -21,10 +21,12 @@
     "lint": "npm run build:shared && eslint .",
     "test": "npm run build:shared && npm run test --workspaces",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "test:e2e": "playwright test -c e2e"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
+    "@playwright/test": "1.64.0",
     "@types/node": "22.20.5",
     "concurrently": "10.0.6",
     "eslint": "10.12.0",
