@@ -99,10 +99,13 @@ The LLM sees data that an attacker can influence: package names in a lockfile th
 
 ## 10. Supply chain of this project
 
-- `package-lock.json` is committed; CI uses `npm ci`.
+- `package-lock.json` is committed; CI and the Docker build use `npm ci --ignore-scripts`, so no dependency runs code at install time (the "install scripts" risk the report flags for users).
 - All dependencies are pinned to exact versions (`save-exact=true` in `.npmrc`).
 - We chose versions that had been published for at least two weeks at the time of writing, as a simple cooldown against freshly compromised releases.
-- `npm audit --audit-level=high` runs in CI.
+- `npm audit --audit-level=high` runs in CI, and the built image is scanned with Trivy (its own image, pinned by digest, no third-party action), failing on fixable high or critical vulnerabilities.
+- Dependabot (`.github/dependabot.yml`) proposes npm, GitHub Actions and base-image updates weekly with a 14-day cooldown; security updates for published advisories are not delayed.
+- The runtime image contains no package manager (npm, npx, corepack and yarn are removed), and the Dockerfile pulls nothing unpinned (no `# syntax` frontend image).
+- "Recent scans" (`GET /api/scans`) only lists the scans the calling client started or joined, so a shared deployment does not reveal what other visitors scanned.
 - Runtime dependencies are kept to what the server needs: Fastify and four official plugins, Zod, semver, and the official Anthropic SDK. Every dependency is justified in `docs/DEPENDENCIES.md`. Retries, concurrency limiting, CVSS scoring and SSE are implemented in-house in a few dozen lines each instead of adding packages.
 
 ## 11. Known limitations

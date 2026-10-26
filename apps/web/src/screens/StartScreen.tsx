@@ -270,8 +270,8 @@ export function StartScreen({ health }: { health: HealthResponse | null }) {
           index="04"
           label="Recent"
           titleId="recent-title"
-          title="Scans on this server"
-          lead="Kept in memory until the server restarts. Open one to see its report or progress."
+          title="Your recent scans"
+          lead="Scans started from your network, kept in memory until the server restarts. Other visitors never see them."
         />
         <Panel
           toolbar={

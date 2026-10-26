@@ -73,3 +73,9 @@ No router, state library, UI kit, animation library or markdown renderer: three 
 | Image  | Version                                           | Notes                                                                                                                                                                                                                                                                                               |
 | ------ | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `node` | `22.23.4-alpine3.24`, pinned by multi-arch digest | Same Node major as `.nvmrc`. Alpine keeps the image small (no compiler, no shell tools beyond busybox). Pinned by digest so a re-tagged image cannot change the build; the base image is the exception to the two-week cooldown, because OS security patches matter more than freshness risk there. |
+
+## CI tooling
+
+| Tool    | Version                    | Notes                                                                                                                                            |
+| ------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `trivy` | `0.75.0`, pinned by digest | Image vulnerability scan in CI, run from Aqua's own image instead of a third-party GitHub Action; released 2026-10-01, inside the cooldown rule. |

@@ -29,8 +29,12 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
-      - name: Install (lockfile only)
-        run: npm ci
+      # Dependency install scripts stay off, as the report recommends to its users (esbuild and
+      # fsevents ship them and work without). Our own postinstall only builds the shared package.
+      - name: Install (lockfile only, no install scripts)
+        run: |
+          npm ci --ignore-scripts
+          npm run build:shared
 
       - name: Audit dependencies
         run: npm audit --audit-level=high
@@ -73,6 +77,15 @@ jobs:
 
       - name: Build image
         run: docker build -t scan-review:ci .
+
+      # Trivy from its own image, pinned by digest (no third-party action). Fails on fixable
+      # high or critical vulnerabilities in the OS packages or Node dependencies of the image.
+      - name: Scan image for vulnerabilities
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:0.75.0@sha256:af6acf9a6b85dfe389a1941505c0ce9efef52a4719635e1a962f022a3d855daa \
+            image --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 \
+            scan-review:ci
 
       - name: Smoke test the container
         run: |

@@ -40,7 +40,9 @@ export function registerScanRoutes(
     },
   );
 
-  app.get('/api/scans', async () => ({ scans: await services.service.listRecent() }));
+  app.get('/api/scans', async (request) => ({
+    scans: await services.service.listRecent(clientKey(request.ip)),
+  }));
 
   app.get('/api/scans/:id', async (request) => services.service.get(parseId(request.params)));
 

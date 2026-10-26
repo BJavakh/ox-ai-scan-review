@@ -47,6 +47,7 @@ curl -s -X POST localhost:8787/api/scans -H 'content-type: application/json' \
 curl -s localhost:8787/api/scans/<scanId>          # status and steps
 curl -sN localhost:8787/api/scans/<scanId>/events  # live progress (SSE)
 curl -s localhost:8787/api/scans/<scanId>/report   # the report
+curl -s localhost:8787/api/openapi.json            # OpenAPI 3.1, generated from the shared schemas
 ```
 
 ---
@@ -135,7 +136,7 @@ The service takes an untrusted URL, reads untrusted content and sends some of it
 - **Secrets:** env only, validated at startup, redacted from logs, never sent to the browser.
 - **HTTP:** helmet with a strict CSP, CORS limited to the web origin, sanitized `X-Request-Id`.
 - **Independent review before submission:** a separate adversarial security review and a correctness review were run over the whole codebase; all 13 findings (including a quadratic lockfile-parsing DoS and two prompt-injection gaps) were reproduced, fixed and covered by regression tests. The list is in [`docs/AI_USAGE.md`](docs/AI_USAGE.md).
-- **This project's supply chain:** exact pins, committed lockfile, `npm audit` in CI, a two-week cooldown on new releases, minimal runtime dependencies ([`docs/DEPENDENCIES.md`](docs/DEPENDENCIES.md)). Two patched releases were taken early because advisories appeared for the pinned versions (fastify, and zod mid-assessment).
+- **This project's supply chain** follows the advice the report gives: exact pins, committed lockfile, `npm ci --ignore-scripts` in CI and in the image, `npm audit` and a Trivy image scan in CI, Dependabot for npm, Actions and the base image with the same two-week cooldown on new releases, digest-pinned images and SHA-pinned actions, no package manager in the runtime image, minimal runtime dependencies ([`docs/DEPENDENCIES.md`](docs/DEPENDENCIES.md)). Two patched releases were taken early because advisories appeared for the pinned versions (fastify, and zod mid-assessment).
 
 ---
 
@@ -152,7 +153,7 @@ The service takes an untrusted URL, reads untrusted content and sends some of it
 
 - **Image:** a multi-stage `Dockerfile` (Node 22 Alpine pinned by digest, production dependencies only, non-root, read-only filesystem friendly, `HEALTHCHECK`). The API serves the built web app, so the whole product is one container and one URL (ADR-023).
 - **Render:** `render.yaml` is a Blueprint for one Docker web service: live mode, health check on `/api/health`, three trusted proxy hops (Cloudflare, Render's edge and its internal load balancer, verified from request logs) for correct client IPs, and a lower per-client scan quota. `GITHUB_TOKEN` and `ANTHROPIC_API_KEY` are entered in the Render dashboard, never committed. Deploys run on every push to `main`.
-- **CI** builds the image and checks it end to end: healthy, non-root, both CSPs, and a clean exit on `docker stop`.
+- **CI** builds the image, scans it with Trivy (fails on fixable high or critical vulnerabilities), and checks it end to end: healthy, non-root, both CSPs, and a clean exit on `docker stop`.
 - At scale: API replicas from the same image behind a load balancer, the web build on a CDN, and Postgres, BullMQ and Redis in place of the in-process store, queue and cache ([`ARCHITECTURE.md` sections 10 and 12](docs/ARCHITECTURE.md#12-deployment)).
 
 ---
@@ -162,7 +163,7 @@ The service takes an untrusted URL, reads untrusted content and sends some of it
 ```bash
 npm run typecheck   # strict TS in all workspaces
 npm run lint        # typescript-eslint strict-type-checked + react-hooks
-npm test            # 329 unit and integration tests: 261 API, 57 shared, 11 web
+npm test            # 331 unit and integration tests: 263 API, 57 shared, 11 web
 npm run test:e2e    # Playwright smoke tests in a real browser (offline mock mode, own ports)
 ```
 

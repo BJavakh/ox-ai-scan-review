@@ -28,8 +28,16 @@ export interface ScanRepository {
     sha: string,
     since: Date,
   ): Promise<StoredScan | undefined>;
-  /** Newest first, without reports (list views must not copy whole reports). */
-  listRecent(limit: number): Promise<{ scan: Scan; riskLevel: RiskLevel | null }[]>;
+  /**
+   * Remember that `client` asked for this scan (a new submit or a deduplicated one). Kept apart
+   * from StoredScan so the orchestrator's saves cannot overwrite it. Postgres: a join table.
+   */
+  addRequester(scanId: string, client: string): Promise<void>;
+  /**
+   * The scans `client` asked for, newest first, without reports (list views must not copy whole
+   * reports). Per client so a shared server never shows one visitor what another scanned.
+   */
+  listRecent(limit: number, client: string): Promise<{ scan: Scan; riskLevel: RiskLevel | null }[]>;
 }
 
 export function dedupeKey(owner: string, repo: string, ref: string | null): string {

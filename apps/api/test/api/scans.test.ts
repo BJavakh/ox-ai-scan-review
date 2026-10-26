@@ -354,6 +354,26 @@ describe('listing, health and headers', () => {
     ]);
   });
 
+  it('lists only the scans this client started or joined', async () => {
+    const { app, services } = await setup();
+    const from = (remoteAddress: string, repoUrl: string) =>
+      app.inject({ method: 'POST', url: '/api/scans', payload: { repoUrl }, remoteAddress });
+    const listFor = async (remoteAddress: string) =>
+      scanListResponseSchema
+        .parse((await app.inject({ method: 'GET', url: '/api/scans', remoteAddress })).json())
+        .scans.map((s) => s.repo.name);
+
+    await from('203.0.113.1', VULNERABLE);
+    await from('203.0.113.2', 'https://github.com/demo/clean-app');
+    // Joins the first client's in-flight scan (deduplicated) and must then see it too.
+    await from('203.0.113.2', VULNERABLE);
+    await services.queue.onIdle();
+
+    expect(await listFor('203.0.113.1')).toEqual(['vulnerable-app']);
+    expect(await listFor('203.0.113.2')).toEqual(['clean-app', 'vulnerable-app']);
+    expect(await listFor('198.51.100.9')).toEqual([]);
+  });
+
   it('reports health without leaking configuration', async () => {
     const { app } = await setup({ env: { ANTHROPIC_API_KEY: 'sk-ant-secret' } });
     const res = await app.inject({ method: 'GET', url: '/api/health' });

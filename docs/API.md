@@ -1,6 +1,6 @@
 # API
 
-Base path: `/api`. All bodies are JSON (`application/json`) except the SSE stream. The Zod schemas in `packages/shared/src` are the source of truth; this document mirrors them. The web client validates every response against the same schemas.
+Base path: `/api`. All bodies are JSON (`application/json`) except the SSE stream. The Zod schemas in `packages/shared/src` are the source of truth; this document mirrors them, and `GET /api/openapi.json` serves an OpenAPI 3.1 document generated from the same schemas (so it cannot drift; a test checks that every documented route exists). The web client validates every response against the same schemas.
 
 Every response carries an `X-Request-Id` header. A client may send its own `X-Request-Id` (1 to 64 chars of `[A-Za-z0-9-]`); otherwise the server generates a UUID.
 
@@ -279,7 +279,7 @@ Field semantics are in `docs/ARCHITECTURE.md` section 4 and 5.
 
 ## `GET /api/scans`
 
-The 20 most recent scans, newest first.
+The 20 most recent scans that this client started or joined (a deduplicated submit counts), newest first. The client is the same key the rate limits use (IPv4 address or IPv6 /64), so on a shared deployment one visitor never sees what another scanned; a scan is still readable by anyone who has its ID.
 
 ```json
 {

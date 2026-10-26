@@ -1,0 +1,29 @@
+# Keeps this repository's own supply chain current. The 14-day cooldown matches the project's
+# rule of only taking releases that have been public for two weeks (docs/DEPENDENCIES.md);
+# Dependabot security updates for published advisories are not delayed by it.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 14
+    groups:
+      npm-minor-and-patch:
+        update-types: [minor, patch]
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 14
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 14

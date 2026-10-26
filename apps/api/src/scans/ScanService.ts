@@ -71,6 +71,7 @@ export class ScanService {
         new AppError(503, 'SERVICE_BUSY', 'The scanner is busy. Try again in a minute.')
       );
     }
+    await this.repository.addRequester(stored.scan.id, client);
     if (created) this.quota.record(client);
     if (created) this.queue.enqueue(() => this.orchestrator.run(stored.scan.id));
     return { scan: stored.scan, deduplicated: !created };
@@ -93,8 +94,9 @@ export class ScanService {
     return stored.report;
   }
 
-  async listRecent(): Promise<ScanListItem[]> {
-    const recent = await this.repository.listRecent(RECENT_SCANS_LIMIT);
+  /** Only the scans this client started or joined. */
+  async listRecent(client = 'local'): Promise<ScanListItem[]> {
+    const recent = await this.repository.listRecent(RECENT_SCANS_LIMIT, client);
     return recent.map(({ scan, riskLevel }) => ({
       id: scan.id,
       repo: scan.repo,

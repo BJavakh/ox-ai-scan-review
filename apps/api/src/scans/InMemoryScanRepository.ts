@@ -2,9 +2,12 @@ import { type RiskLevel, type Scan, isTerminalStatus } from '@ox-scan/shared';
 import type { ScanRepository, StoredScan } from './ScanRepository.js';
 
 export const MAX_STORED_SCANS = 200;
+/** Bounded so one popular deduplicated scan cannot grow without limit. */
+export const MAX_REQUESTERS_PER_SCAN = 1_000;
 
 export class InMemoryScanRepository implements ScanRepository {
   private readonly scans = new Map<string, StoredScan>();
+  private readonly requesters = new Map<string, Set<string>>();
 
   constructor(private readonly capacity = MAX_STORED_SCANS) {}
 
@@ -55,9 +58,21 @@ export class InMemoryScanRepository implements ScanRepository {
     return Promise.resolve(latest ? structuredClone(latest) : undefined);
   }
 
-  listRecent(limit: number): Promise<{ scan: Scan; riskLevel: RiskLevel | null }[]> {
+  addRequester(scanId: string, client: string): Promise<void> {
+    if (!this.scans.has(scanId)) return Promise.resolve();
+    const set = this.requesters.get(scanId) ?? new Set<string>();
+    if (set.size < MAX_REQUESTERS_PER_SCAN) set.add(client);
+    this.requesters.set(scanId, set);
+    return Promise.resolve();
+  }
+
+  listRecent(
+    limit: number,
+    client: string,
+  ): Promise<{ scan: Scan; riskLevel: RiskLevel | null }[]> {
     return Promise.resolve(
       [...this.scans.values()]
+        .filter((s) => this.requesters.get(s.scan.id)?.has(client) === true)
         .slice(-limit)
         .reverse()
         .map((s) => ({ scan: structuredClone(s.scan), riskLevel: s.report?.riskLevel ?? null })),
@@ -68,7 +83,10 @@ export class InMemoryScanRepository implements ScanRepository {
   private evict(): void {
     for (const [id, stored] of this.scans) {
       if (this.scans.size <= this.capacity) return;
-      if (isTerminalStatus(stored.scan.status)) this.scans.delete(id);
+      if (isTerminalStatus(stored.scan.status)) {
+        this.scans.delete(id);
+        this.requesters.delete(id);
+      }
     }
   }
 }

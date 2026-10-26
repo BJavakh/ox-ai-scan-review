@@ -8,6 +8,7 @@ import type { Env } from '../config/env.js';
 import { type ContainerOverrides, type Services, createContainer } from '../container.js';
 import { clientKey } from './clientKey.js';
 import { AppError } from './errors.js';
+import { buildOpenApiDocument } from './openapi.js';
 import { registerScanRoutes } from './routes/scans.js';
 import { StreamLimiter } from './sse.js';
 
@@ -184,6 +185,10 @@ export async function buildApp(
     mode: env.SCANNER_MODE,
     aiSummaries: services.summaries.aiEnabled,
   }));
+
+  // Generated once: it only depends on the shared schemas.
+  const openApi = buildOpenApiDocument();
+  app.get('/api/openapi.json', () => openApi);
 
   registerScanRoutes(app, services, streams, options.heartbeatMs);
 

@@ -104,3 +104,45 @@ describe('client IP behind a reverse proxy (TRUST_PROXY_HOPS)', () => {
     expect(await ipFor(server, '1.2.3.4, 203.0.113.7')).toBe('203.0.113.7');
   });
 });
+
+describe('OpenAPI document', () => {
+  it('is served, resolves every $ref, and documents only routes that exist', async () => {
+    const { app: server, services } = await buildApp(
+      loadEnv({ NODE_ENV: 'test', SCANNER_MODE: 'mock' }),
+      { fetchFn: createFixtureFetch(), summaryGenerator: null },
+    );
+    await server.ready();
+    current = server;
+    const res = await server.inject({ method: 'GET', url: '/api/openapi.json' });
+    expect(res.statusCode).toBe(200);
+    const doc = res.json<{
+      openapi: string;
+      paths: Record<string, Record<string, unknown>>;
+      components: { schemas: Record<string, unknown> };
+    }>();
+    expect(doc.openapi).toBe('3.1.0');
+
+    const refs = [...res.body.matchAll(/"\$ref":"#\/components\/schemas\/(\w+)"/g)].map(
+      (m) => m[1],
+    );
+    expect(refs.length).toBeGreaterThan(0);
+    for (const name of refs) expect(doc.components.schemas).toHaveProperty(name as string);
+
+    // A real scan, so the {id} routes answer from their handlers rather than the 404 fallback.
+    const created = await server.inject({
+      method: 'POST',
+      url: '/api/scans',
+      payload: { repoUrl: 'https://github.com/demo/clean-app' },
+    });
+    const { scanId } = created.json<{ scanId: string }>();
+    await services.queue.onIdle();
+    for (const [path, operations] of Object.entries(doc.paths)) {
+      for (const method of Object.keys(operations)) {
+        if (method === 'post') continue; // exercised above
+        const url = path.replace('{id}', scanId);
+        const answer = await server.inject({ method: 'GET', url });
+        expect([path, answer.statusCode]).toEqual([path, 200]);
+      }
+    }
+  });
+});
