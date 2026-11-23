@@ -9,7 +9,7 @@
 # Apple silicon), written out in each FROM so Dependabot can update them.
 
 # ---- build: install everything, compile shared, api and web ----
-FROM node:22.23.4-alpine3.24@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914 AS build
+FROM node:22.23.4-alpine3.24@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202 AS build
 WORKDIR /app
 COPY package.json package-lock.json .npmrc ./
 COPY packages/shared/package.json packages/shared/
@@ -24,7 +24,7 @@ COPY apps/web apps/web
 RUN npm run build
 
 # ---- runtime: production dependencies and compiled output only ----
-FROM node:22.23.4-alpine3.24@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914 AS runtime
+FROM node:22.23.4-alpine3.24@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202 AS runtime
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=8787 \
